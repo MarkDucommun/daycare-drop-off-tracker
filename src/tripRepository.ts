@@ -1,4 +1,16 @@
-import {failure, Result, success, todo, traverse} from "./results";
+import {
+    doOnError,
+    failure,
+    flatMap,
+    flatMapAsync,
+    map,
+    mapError, recoverError,
+    Result,
+    success,
+    successIfDefined,
+    todo,
+    traverse
+} from "./results";
 import {
     CompletedTrip,
     InboundTripSelector,
@@ -11,10 +23,12 @@ import {
     Trip,
     TripEvent,
     TripRepository,
-    TripState
+    TripState,
+    TripSummary
 } from "./trip";
 import * as SQLite from "expo-sqlite";
-import {ResultSet, SQLiteDatabase, SQLStatementArg} from "expo-sqlite";
+import {ResultSet, SQLStatementArg} from "expo-sqlite";
+import {createSqlExecutor, ExecuteSQL, InTransaction, Row, Transaction} from "./databaseAccess";
 
 
 type AllTripData = {
@@ -23,8 +37,11 @@ type AllTripData = {
 }
 
 function rowsToTripData({rows}: ResultSet): Result<string, AllTripData | null> {
+    if (rows.length == 0) return success<string, AllTripData | null>(null)
+
     const tripData: TripData = {
-        id: rows[0].id,
+        id: rows[0].trip_id,
+        version: rows[0].version,
         inboundRouteId: rows[0].inbound_route_id,
         outboundRouteId: rows[0].inbound_route_id
     }
@@ -39,74 +56,18 @@ function rowsToTripData({rows}: ResultSet): Result<string, AllTripData | null> {
         })
     })
 
-    return success({
+    return success<string, AllTripData | null>({
         tripData,
         tripEventsData
     })
 }
 
-type Row = { [column: string]: any }
-
-async function selectRoutes(tx: SQLite.SQLTransactionAsync): Promise<Result<string, Row[]>> {
-    try {
-        return success((await tx.executeSqlAsync("select * from routes")).rows)
-    } catch (e: any) {
-        if ('message' in e) {
-            return failure(e.message)
-        } else {
-            return failure<string, Row[]>("Error reading database when selecting all routes")
-        }
-    }
-}
-
-type ExecuteSQL = (sql: string, args?: string | number | null[]) => Promise<Result<string, ResultSet>>
-
-function createSqlExecutor(tx: SQLite.SQLTransactionAsync): ExecuteSQL {
-    return async (sql, args) => {
-        try {
-            return success(await tx.executeSqlAsync(sql, args as SQLStatementArg[]))
-        } catch (e: any) {
-            if ('message' in e) {
-                return failure(e.message)
-            } else {
-                return failure<string, ResultSet>("Error executing SQL")
-            }
-        }
-    }
-}
-
-async function selectLastTripDataToo(execute: ExecuteSQL): Promise<Result<string, ResultSet>> {
-    return (await execute("SELECT t.*, te.* FROM trips t LEFT JOIN trip_events te ON t.id = te.trip_id WHERE trip_id = (SELECT trip_id FROM trip_events ORDER BY timestamp_ms DESC) ORDER BY te.timestamp_ms DESC"))
-}
-
-async function selectLastTripData(tx: SQLite.SQLTransactionAsync): Promise<Result<string, Row[]>> {
-    try {
-        const {rows} = await tx
-            .executeSqlAsync("SELECT t.*, te.* FROM trips t LEFT JOIN trip_events te ON t.id = te.trip_id WHERE trip_id = (SELECT trip_id FROM trip_events ORDER BY timestamp_ms DESC) ORDER BY te.timestamp_ms DESC", [])
-        return success(rows)
-    } catch (e: any) {
-        if ('message' in e) {
-            return failure(e.message)
-        } else {
-            return failure<string, Row[]>("Error reading database when selecting last trip")
-        }
-    }
-}
-
-async function persistInnerTrip(tx: SQLite.SQLTransactionAsync, innerTrip: InnerTrip): Promise<Result<string, number>> {
-    try {
-        const {insertId} = await tx
-            .executeSqlAsync("insert into trips (outbound_route_id, inbound_route_id) values (null, null)")
-        if (insertId) return success(insertId)
-        else return fail("Error inserting trip into database")
-    } catch (e: any) {
-        if ('message' in e) {
-            return failure(e.message)
-        } else {
-            return failure<string, number>("Error inserting trip into database")
-        }
-    }
-}
+const selectLastTripData = (execute: ExecuteSQL): Promise<Result<string, ResultSet>> => execute(
+    `SELECT t.*, te.*
+     FROM trips t
+              LEFT JOIN trip_events te ON t.id = te.trip_id
+     WHERE trip_id = (SELECT trip_id FROM trip_events ORDER BY timestamp_ms DESC)
+     ORDER BY te.timestamp_ms, te.id DESC`);
 
 function allTripDataToTrip(allTripData: AllTripData): Trip {
     const {tripData, tripEventsData} = allTripData
@@ -134,137 +95,144 @@ function allTripDataToTrip(allTripData: AllTripData): Trip {
             return buildStoppedTrip(innerTrip)
         case "complete":
             if (tripData.outboundRouteId == null) {
-                throw Error()
+                return buildOutboundTripSelector(innerTrip)
             } else if (tripData.inboundRouteId == null) {
-                throw Error()
+                return buildInboundTripSelector(innerTrip)
             } else {
                 return createPendingTrip(createInnerTrip())
             }
     }
 }
 
-type WithTransaction<T> = (tx: SQLite.SQLTransactionAsync, pushOnRollback: (fn: () => void) => void) => Promise<Result<string, T>>
+const extractInsertId = ({insertId}: ResultSet) => insertId;
 
-type InTransaction<T> = (executor: ExecuteSQL, pushOnRollback: (fn: () => void) => void) => Promise<Result<string, T>>
+const extractVersion = ({rows}: ResultSet): Result<string, number> =>
+    rows.length != 1 && !rows[0]['version'] && typeof rows[0]['version'] != "number" ?
+        failure("Could not load version") : success(rows[0]['version'])
 
-async function useDbAsync<T>(db: SQLite.SQLiteDatabase, fn: WithTransaction<T>): Promise<Result<string, T>> {
-    return new Promise(async (resolve) => {
-        const onRollback: Array<() => void> = []
-        try {
-            await db.transactionAsync(async tx => resolve(fn(tx, onRollback.push)));
-        } catch (e: any) {
-            onRollback.forEach(it => it())
-            if ('message' in e) {
-                return failure(e.message)
-            } else {
-                return failure<String, Row[]>("Error reading database when selecting last trip")
+const checkVersion = (innerTrip: InnerTrip) => (currentVersion: number): Result<string, InnerTrip> => innerTrip.version == currentVersion ?
+    success(innerTrip) : failure(`InnerTrip version mismatch (current: ${currentVersion}, innerTrip: ${innerTrip.version}), aborting database operation`)
+
+const __updateInnerTrip = (execute: ExecuteSQL) => (innerTrip: InnerTrip): Promise<Result<string, ResultSet>> =>
+    execute(
+        "UPDATE trips SET (outbound_route_id, inbound_route_id, version) = (?, ?, ?) where id = ?",
+        [innerTrip.outboundRoute, innerTrip.inboundRoute, innerTrip.version + 1, innerTrip.id]
+    )
+
+const selectTripVersionData = (execute: ExecuteSQL, innerTrip: InnerTrip) =>
+    execute("SELECT version FROM trips WHERE id = ?", [innerTrip.id])
+
+const updateInnerTrip = (execute: ExecuteSQL, innerTrip: InnerTrip) =>
+    selectTripVersionData(execute, innerTrip)
+        .then(flatMap(extractVersion))
+        .then(flatMap(checkVersion(innerTrip)))
+        .then(doOnError((e) => console.log("Check version: " + e)))
+        .then(flatMapAsync(__updateInnerTrip(execute)))
+        .then(map(extractInsertId))
+        .then(flatMap(successIfDefined))
+        .then(mapError((e) => `Could not update trip '${innerTrip.id}': ` + e))
+        .then(map(innerTrip.incrementVersion))
+        .then(map(a => innerTrip as PersistedInnerTrip))
+
+const __insertInnerTrip = (execute: ExecuteSQL) =>
+    execute("insert into trips (outbound_route_id, inbound_route_id, version) values (null, null, 1)")
+
+const setIdAndIncrementVersionOnInnerTrip = (innerTrip: InnerTrip, pushOnRollback: (fn: () => void) => void) => (id: number): void => {
+    pushOnRollback(innerTrip.setId(id))
+    pushOnRollback(innerTrip.incrementVersion())
+}
+
+const logInsertId = (id: number) => console.log(`Created Trip with id '${id}'`)
+
+const insertInnerTrip = async (execute: ExecuteSQL, pushOnRollback: (fn: () => void) => void, innerTrip: InnerTrip) =>
+    (await __insertInnerTrip(execute))
+        .map(extractInsertId)
+        .flatMap(successIfDefined)
+        .doOnSuccess(logInsertId)
+        .doOnSuccess(setIdAndIncrementVersionOnInnerTrip(innerTrip, pushOnRollback))
+        .mapError(() => "Could not insert new trip")
+        .map(a => innerTrip as PersistedInnerTrip)
+
+const persistInnerTripToo = (execute: ExecuteSQL, pushOnRollback: (fn: () => void) => void, innerTrip: InnerTrip): Promise<Result<string, PersistedInnerTrip>> =>
+    innerTrip.id == null && innerTrip.version == 0 ?
+        insertInnerTrip(execute, pushOnRollback, innerTrip) :
+        updateInnerTrip(execute, innerTrip);
+
+const __insertTripEvent = (execute: ExecuteSQL, tripId: number, tripEvent: TripEvent) =>
+    execute(
+        "insert into trip_events (trip_id, status, timestamp_ms) values (?, ?, ?)",
+        [tripId, tripEvent.state, tripEvent.timestamp]
+    )
+
+const setPersistedOnTripEvent = (tripEvent: TripEvent, pushOnRollback: (fn: () => void) => void) => () => {
+    tripEvent.persisted = true
+    pushOnRollback(() => tripEvent.persisted = false)
+}
+
+const persistTripEvents = (execute: ExecuteSQL, pushOnRollback: (fn: () => void) => void) => (innerTrip: PersistedInnerTrip) =>
+    Promise.all(innerTrip
+        .unsavedEvents()
+        .map(persistTripEvent(execute, pushOnRollback, innerTrip.id)))
+        .then(traverse)
+const persistTripEvent = (execute: ExecuteSQL, pushOnRollback: (fn: () => void) => void, tripId: number) => async (tripEvent: TripEvent): Promise<Result<string, null>> =>
+    (await __insertTripEvent(execute, tripId, tripEvent))
+        .doOnSuccess(setPersistedOnTripEvent(tripEvent, pushOnRollback))
+        .map(_ => null)
+
+const getName = (row: Row): Result<string, string> => 'name' in row ?
+    success(row.name) :
+    failure("'routes' row missing expected key name");
+
+const newPendingTrip = () => success<string, Trip>(createPendingTrip(createInnerTrip()))
+
+export const getTripRepositoryToo = (createTransaction: Transaction): Promise<Result<string, TripRepository>> =>
+    createTransaction(ensureTablesExistToo)
+        .then(map(() => ({
+                nextTrip: () =>
+                    createTransaction(async (execute) =>
+                        (await selectLastTripData(execute))
+                            .flatMap(rowsToTripData)
+                            .doOnSuccess(console.log)
+                            .flatMap(successIfDefined)
+                            .map(allTripDataToTrip)
+                            .doOnSuccess(console.log)
+                            .flatMapError(newPendingTrip)),
+                save: async (innerTrip) =>
+                    createTransaction(async (execute, pushOnRollback) =>
+                        (await persistInnerTripToo(execute, pushOnRollback, innerTrip))
+                            .flatMapAsync(persistTripEvents(execute, pushOnRollback))
+                            .then(map(_ => null))),
+                getRoutes: () =>
+                    createTransaction(async (execute) =>
+                        getRouteNames(await selectRoutesToo(execute)))
             }
-        }
-    })
-}
+        )));
 
-type Transaction<T> = (fn: InTransaction<T>) => Promise<Result<string, T>>
+const getRouteNames = (selectRoutesResults: Result<string, ResultSet>): Result<string, string[]> =>
+    selectRoutesResults.flatMap(({rows}) => traverse(rows.map(getName)))
 
-async function useSqlExecutor<T>(db: SQLite.SQLiteDatabase, fn: InTransaction<T>): Promise<Result<string, T>> {
-    return new Promise(async (resolve) => {
-        const onRollback: Array<() => void> = []
-        try {
-            await db.transactionAsync(async tx =>
-                resolve(fn(createSqlExecutor(tx), onRollback.push)));
-        } catch (e: any) {
-            onRollback.forEach(it => it())
-            if ('message' in e) {
-                return failure(e.message)
-            } else {
-                return failure<String, Row[]>("Error reading database when selecting last trip")
-            }
-        }
-    })
-}
+const selectRoutesToo = (execute: ExecuteSQL): Promise<Result<string, ResultSet>> =>
+    execute("select * from routes")
 
-async function usePersistedTrip(tx: SQLite.SQLTransactionAsync, innerTrip: InnerTrip, addOnRollback: (fn: () => void) => void): Promise<Result<string, PersistedInnerTrip>> {
-    if (innerTrip.id == null) {
-        return (await persistInnerTrip(tx, innerTrip))
-            .map((id) => {
-                addOnRollback(() => innerTrip.id = null)
-                innerTrip.id = id
-                return innerTrip as PersistedInnerTrip
-            })
-    } else {
-        return success(innerTrip as PersistedInnerTrip)
-    }
-}
-
-async function persistEvent(tx: SQLite.SQLTransactionAsync, tripId: number, tripEvent: TripEvent, addOnRollback: (fn: () => void) => void): Promise<Result<string, null>> {
-    try {
-        await tx.executeSqlAsync("insert into trip_events (trip_id, status, timestamp_ms) values (?, ?, ?)", [tripId, tripEvent.state, tripEvent.timestamp])
-        tripEvent.persisted = true
-        addOnRollback(() => tripEvent.persisted = false)
-        return success(null)
-    } catch (e: any) {
-        if ('message' in e) {
-            return failure(e.message)
-        } else {
-            return failure<string, null>("Error inserting trip event into database")
-        }
-    }
-}
-
-function getName(row: Row): Result<string, string> {
-    if ('name' in row) {
-        return success<string, string>(row.name)
-    } else {
-        return failure<string, string>("'routes' row missing expected key name")
-    }
-}
-
-export function getTripRepository(db: SQLite.SQLiteDatabase): TripRepository {
-
-    ensureTablesExist(db)
-
-    return {
-        nextTrip: (): Promise<Result<string, Trip>> =>
-            useSqlExecutor<Trip>(db, async (executor) => {
-                return (await selectLastTripDataToo(executor))
-                    .flatMap(rowsToTripData)
-                    .map((allTripData) => {
-                        if (allTripData == null) {
-                            return createPendingTrip(createInnerTrip())
-                        } else {
-                            return allTripDataToTrip(allTripData)
-                        }
-                    })
-            }),
-        save: (innerTrip: InnerTrip): Promise<Result<string, null>> =>
-            useDbAsync<null>(db, async (tx, addOnRollback) =>
-                (await usePersistedTrip(tx, innerTrip, addOnRollback))
-                    .flatMapAsync(async innerTrip => {
-                        const promises = innerTrip
-                            .unsavedEvents()
-                            .map(async event => await persistEvent(tx, innerTrip.id, event, addOnRollback));
-
-                        return traverse(await Promise.all(promises)).map(() => null);
-                    })),
-        getRoutes: (): Promise<Result<string, Array<string>>> =>
-            useDbAsync<Array<string>>(db, async (tx) =>
-                (await selectRoutes(tx)).flatMap((rows) => traverse(rows.map(getName))))
-    }
-}
-
-
-function ensureTablesExist(db: SQLite.SQLiteDatabase) {
-    db.transaction((tx) => {
-        tx.executeSql("PRAGMA foreign_keys = ON;")
-        tx.executeSql("create table if not exists routes (id integer primary key not null, name text unique);")
-        tx.executeSql("insert into routes (name) values (?)", ["Lake-Chestnut"]) // TODO if it doesn't exist - probably need to clear up old instances, will have a good opportunity to test migrations
-        tx.executeSql("insert into routes (name) values (?)", ["Glenview-Lehigh"]) // TODO if it doesn't exist - probably need to clear up old instances, will have a good opportunity to test migrations
-        tx.executeSql("create table if not exists trips (id integer primary key not null, outbound_route_id integer, inbound_route_id integer, foreign key (outbound_route_id) references routes(id), foreign key (inbound_route_id) references routes(id));");
-        tx.executeSql("create table if not exists trip_events (id integer primary key not null, trip_id integer not null, status text not null, timestamp_ms integer not null, foreign key (trip_id) references trips(id));")
-    });
+async function ensureTablesExistToo(execute: ExecuteSQL): Promise<Result<string, null>> {
+    return execute("PRAGMA foreign_keys = ON;")
+        .then(flatMapAsync(() => execute("create table if not exists routes (id integer primary key not null, name text unique);")))
+        .then(flatMapAsync(() => execute("insert into routes (name) values (?)", ["Lake-Chestnut"])))
+        .then(map(_ => null))
+        .then(doOnError(console.log))
+        .then(recoverError(_ => null))
+        .then(flatMapAsync(() => execute("insert into routes (name) values (?)", ["Glenview-Lehigh"])))
+        .then(map(_ => null))
+        .then(doOnError(console.log))
+        .then(recoverError(_ => null))
+        .then(flatMapAsync(() => execute("create table if not exists trips (id integer primary key not null, outbound_route_id integer, inbound_route_id integer, version integer not null, foreign key (outbound_route_id) references routes(id), foreign key (inbound_route_id) references routes(id));")))
+        .then(flatMapAsync(() => execute("create table if not exists trip_events (id integer primary key not null, trip_id integer not null, status text not null, timestamp_ms integer not null, foreign key (trip_id) references trips(id));")))
+        .then(map(_ => null))
 }
 
 type TripData = {
-    id: number
+    id: number,
+    version: number
     outboundRouteId: number | undefined
     inboundRouteId: number | undefined
 }
@@ -277,6 +245,7 @@ type TripEventData = {
 }
 
 function createInnerTrip(innerEvents: Array<TripEvent> = []): InnerTrip {
+    // TODO convert all accesses of InnerTrip to functions, make an underlying innerTripState that can move forwards and backwards in time like Redux
     return {
         addEvent(state: TripState): void {
             innerEvents.push({
@@ -291,9 +260,17 @@ function createInnerTrip(innerEvents: Array<TripEvent> = []): InnerTrip {
         unsavedEvents(): Array<TripEvent> {
             return innerEvents.filter(it => !it.persisted)
         },
-        addId(id: number) {
+        setId(id) {
             this['id'] = id
+            return () => this['id'] = null
         },
+        incrementVersion() {
+            this['version']++
+            return () => this['version']--
+        },
+        inboundRoute: null,
+        outboundRoute: null,
+        version: 0,
         id: null
     }
 }
@@ -324,7 +301,7 @@ function buildMovingTrip(innerTrip: InnerTrip): MovingTrip {
         stoplight: createStoppedTrip("stoplight", innerTrip),
         train: createStoppedTrip("train", innerTrip),
         dropOff: createStoppedTrip("drop-off", innerTrip),
-        complete: createCompletedTrip(innerTrip),
+        complete: createOutboundTripSelector(innerTrip),
         startTimeMillis: startTimes(innerTrip),
         innerTrip: () => innerTrip
     }
@@ -360,11 +337,22 @@ function createCompletedTrip(innerTrip: InnerTrip): () => CompletedTrip {
 
 function buildCompletedTrip(innerTrip: InnerTrip): CompletedTrip {
     return {
+        summarize: (): TripSummary => ({
+            startTime: 0,
+            duration: {
+                moving: 0,
+                atStoplight: 0,
+                atDropOff: 0,
+                atTrain: 0,
+                total: 0
+            },
+            count: {
+                stoplights: 0,
+                dropOffs: 0,
+                trains: 0
+            }
+        }),
         type: "completed",
-        summarize: () => {
-            return {}
-        },
-        assignRoute: (name: String) => todo(),
         innerTrip: () => innerTrip
     }
 }
@@ -372,14 +360,22 @@ function buildCompletedTrip(innerTrip: InnerTrip): CompletedTrip {
 function buildInboundTripSelector(innerTrip: InnerTrip): InboundTripSelector {
     return {
         type: "inbound-selection",
-        assignInboundRoute: (name): CompletedTrip => buildCompletedTrip(innerTrip)
+        innerTrip: () => innerTrip,
+        assignInboundRoute: (name) => {
+            innerTrip.inboundRoute = name
+            return buildCompletedTrip(innerTrip)
+        },
     }
 }
 
 function buildOutboundTripSelector(innerTrip: InnerTrip): OutboundTripSelector {
     return {
         type: "outbound-selection",
-        assignOutboundRoute: (name): InboundTripSelector => buildInboundTripSelector(innerTrip)
+        innerTrip: () => innerTrip,
+        assignOutboundRoute: (name) => {
+            innerTrip.outboundRoute = name
+            return buildInboundTripSelector(innerTrip)
+        },
     }
 }
 

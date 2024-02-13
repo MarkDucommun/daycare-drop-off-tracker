@@ -13,6 +13,31 @@ export type MovingTrip = {
     complete: () => OutboundTripSelector
 } & ActiveTrip & CoreTrip
 
+export type StoplightTrip = {
+    type: "stoplight",
+    train: () => TrainTrip
+} & StoppedTrip
+
+export type TrainTrip = {
+    type: "train"
+} & StoppedTrip
+
+export type OriginSelector = {
+    type: "origin-selection",
+}
+
+export type DestinationSelector = {
+    type: "destination-selection"
+}
+
+export type LocationCreator = {
+    type: "location-creator"
+}
+
+export type RouteSelector = {
+
+}
+
 export type StoppedTrip = {
     type: "stopped"
     go: () => MovingTrip
@@ -20,20 +45,20 @@ export type StoppedTrip = {
 
 export type InboundTripSelector = {
     type: "inbound-selection"
-    assignInboundRoute: (name: String) => CompletedTrip
-}
+    assignInboundRoute: (name: string) => CompletedTrip
+} & CoreTrip
 
 export type OutboundTripSelector = {
     type: "outbound-selection"
-    assignOutboundRoute: (name: String) => InboundTripSelector
-}
+    assignOutboundRoute: (name: string) => InboundTripSelector
+} & CoreTrip
 
 export type CompletedTrip = {
     type: "completed",
     summarize: () => TripSummary
 } & CoreTrip
 
-type TripSummary = {
+export type TripSummary = {
     startTime: number,
     duration: {
         total: number,
@@ -45,10 +70,11 @@ type TripSummary = {
     count: {
         stoplights: number,
         trains: number,
+        dropOffs: number
     }
 }
 
-export type Trip = PendingTrip | MovingTrip | StoppedTrip | CompletedTrip
+export type Trip = PendingTrip | MovingTrip | StoppedTrip | CompletedTrip | InboundTripSelector | OutboundTripSelector
 
 export type ActiveTrip = {
     startTimeMillis: {
@@ -61,12 +87,40 @@ interface CoreTrip {
     innerTrip: () => InnerTrip
 }
 
+type Revert = () => void
+
 export type InnerTrip = {
     events: () => Array<TripEvent>,
     unsavedEvents: () => Array<TripEvent>
     addEvent: (state: TripState) => void,
-    addId: (id: number) => void,
-    id: null | number
+    inboundRoute: string | null,
+    outboundRoute: string | null,
+    version: number,
+    id: null | number,
+    setId: (id: number) => Revert,
+    incrementVersion: () => Revert
+}
+
+export type InnerTripToo = {
+    events: () => Array<TripEvent>
+    unsavedEvents: () => Array<TripEvent>
+    addEvent: (state: TripState) => Revert
+    addLeg: (leg: TripLeg) => Revert
+    addId: (id: number) => Revert
+    incrementVersion: () => Revert
+}
+
+export type InnerTripState = {
+    id: number | null
+    version: number
+    events: Array<TripEvent>
+    legs: Array<TripLeg>
+}
+
+export type TripLeg = {
+    origin: string
+    destination: string
+    route: string
 }
 
 export type PersistedInnerTrip = InnerTrip & {

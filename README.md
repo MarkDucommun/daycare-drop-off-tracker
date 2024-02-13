@@ -14,3 +14,8 @@ an analysis tool - though it may someday evolve into the latter.
 2. If there is a trip, it loads the trip in its appropriate state
 3. If there is no trip in progress, it shows the un-started state
 4. 
+
+## Question to answer
+1. SQLite Integration Test
+2. What happens when an insert fails
+3. What happens when an update fails

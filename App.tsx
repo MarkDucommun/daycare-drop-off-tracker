@@ -4,29 +4,37 @@ import React, {useEffect, useState} from "react";
 import {Trip, TripRepository} from "./src/trip";
 import {getTripRepository} from "./src/tripRepository";
 import * as SQLite from "expo-sqlite";
+import {Picker, PickerIOS} from "@react-native-picker/picker";
+import {ItemValue} from "@react-native-picker/picker/typings/Picker";
+import {cleanDatabaseFile} from "./src/DatabaseIntegrationTest";
 
-function openDatabase() {
-    const db = SQLite.openDatabase("daycare-dropoff.db");
-    return db;
-}
+// function openDatabase() {
+//     const db = SQLite.openDatabase("daycare-dropoff-v2.db");
+//     return db;
+// }
+//
+// const db = openDatabase()
+//
+// async function initializeTrip(
+//     tripRepository: TripRepository,
+//     trip: Trip | undefined,
+//     setTrip: (it: Trip) => void,
+//     setErrorMessage: (it: string) => void
+// ) {
+//     if (trip == undefined) {
+//         console.log("Loading trip...")
+//         const tripResults = await tripRepository.nextTrip();
+//         tripResults.map(trip => {
+//             console.log("Setting trip: ")
+//             console.log(trip)
+//             setTrip(trip)
+//         }).mapError(setErrorMessage)
+//     } else {
+//         console.log(trip)
+//     }
+// }
 
-const db = openDatabase()
-
-async function initializeTrip(
-    tripRepository: TripRepository,
-    trip: Trip | undefined,
-    setTrip: (it: Trip) => void,
-    setErrorMessage: (it: String) => void
-) {
-    if (trip == undefined) {
-        const tripResults = await tripRepository.nextTrip();
-        tripResults.map(setTrip).mapError(setErrorMessage)
-    } else {
-        console.log(trip)
-    }
-}
-
-// async function dbTests(tripRepository: TripRepository, setErrorMessage: (it: String) => void) {
+// async function dbTests(tripRepository: TripRepository, setErrorMessage: (it: string) => void) {
 //     const tripResult = await tripRepository.nextTrip();
 //
 //     tripResult.mapError(setErrorMessage)
@@ -57,42 +65,52 @@ async function initializeTrip(
 //
 // }
 
-async function initializeRoutes(
-    tripRepository: TripRepository,
-    routes: Array<String>,
-    setRoutes: (it: Array<String>) => void,
-    setErrorMessage: (it: String) => void
-) {
-    if (routes.length == 0) {
-        const routesResult = await tripRepository.getRoutes();
-        routesResult.map(setRoutes).mapError(setErrorMessage)
-    }
-}
+// async function initializeRoutes(
+//     tripRepository: TripRepository,
+//     routes: Array<string>,
+//     setRoutes: (it: Array<string>) => void,
+//     setErrorMessage: (it: string) => void
+// ) {
+//     if (routes.length == 0) {
+//         const routesResult = await tripRepository.getRoutes();
+//
+//         routesResult.map((routes) => {
+//             console.log(routes)
+//             setRoutes(routes)
+//         }).mapError(setErrorMessage)
+//     }
+// }
+
 
 
 export default function App() {
+
+    useEffect(() => {
+        cleanDatabaseFile().then(() => setErrorMessage("Opened database"))
+    }, []);
 
     // TODO build a modal for overall summary of data
     // TODO build a list view that allows for inspecting each trip
     // TODO maybe an admin page for inspecting SQLite instance? Can we export SQLite instance to introspect it?
 
-    const [tripRepository, setTripRepository] = useState<TripRepository>()
-    const [trip, setTrip] = useState<Trip | undefined>()
-    const [routes, setRoutes] = useState<Array<String>>([])
-    const [errorMessage, setErrorMessage] = useState<String | null>(null)
-
-    useEffect(() => {
-        const tripRepository = getTripRepository(db);
-        setTripRepository(tripRepository)
-        // dbTests(tripRepository, setErrorMessage).then()
-    }, []);
-
-    useEffect(() => {
-        if (tripRepository != undefined) {
-            initializeTrip(tripRepository, trip, setTrip, setErrorMessage).then()
-            initializeRoutes(tripRepository, routes, setRoutes, setErrorMessage).then()
-        }
-    }, [tripRepository]);
+    // const [tripRepository, setTripRepository] = useState<TripRepository>()
+    // const [trip, setTrip] = useState<Trip | undefined>()
+    // const [routes, setRoutes] = useState<Array<string>>([])
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
+    // const [selectedRoute, setSelectedRoute] = useState<ItemValue>();
+    //
+    // useEffect(() => {
+    //     const tripRepository = getTripRepository(db);
+    //     setTripRepository(tripRepository)
+    //     // dbTests(tripRepository, setErrorMessage).then()
+    // }, []);
+    //
+    // useEffect(() => {
+    //     if (tripRepository != undefined) {
+    //         initializeRoutes(tripRepository, routes, setRoutes, setErrorMessage).then()
+    //         initializeTrip(tripRepository, trip, setTrip, setErrorMessage).then()
+    //     }
+    // }, [tripRepository]);
 
     if (errorMessage != null) {
         return (<View style={styles.container}>
@@ -101,63 +119,81 @@ export default function App() {
         </View>)
     }
 
-    // if (routes.length == 0) {
+    // if (routes.length != 0) {
+    //     return (<View style={styles.container}>
+    //         {routes.map((route, i) => <Text key={`route-${i}`}>{route}</Text>)}
+    //         <StatusBar style="auto"/>
+    //     </View>)
+    // }
+
+    // if (!tripRepository || !trip) {
+    //     console.log("Nothing loaded yet")
     //     return (<View style={styles.container}>
     //         <Text>Starting app...</Text>
     //         <StatusBar style="auto"/>
     //     </View>)
-    // } else {
-    //
-    //     return <View style={styles.container}>
-    //         {routes.map((route, i) => <Text key={`route-${i}`}>{route.slice(1, route.length - 1)}</Text>)}
-    //         <StatusBar style="auto"/>
-    //     </View>
     // }
-
-    if (!tripRepository || !trip) {
-        return (<View style={styles.container}>
-            <Text>Starting app...</Text>
-            <StatusBar style="auto"/>
-        </View>)
-    }
-
-    const updateTrip = (fn: () => Trip) => async () => {
-        const nextTrip = fn()
-        const result = await tripRepository.save(nextTrip.innerTrip())
-        result.map(() => setTrip(nextTrip)).mapError(setErrorMessage)
-    }
-
-    // SHOW SEGMENT DURATION IF NOT PENDING OR COMPLETED
-    // SHOW TOTAL DURATION IF NOT PENDING OR COMPLETED
-
-    switch (trip.type) {
-        case "pending":
-            return (<View style={styles.container}>
-                <Button title={"Load Trip"} onPress={() => {
-                    tripRepository.nextTrip().then((result) => {
-                        result.map(setTrip)
-                    })
-                }} />
-                <Button title={"Start"} onPress={updateTrip(trip.start)}/>
-            </View>)
-        case "moving":
-            return (<View style={styles.container}>
-                <Button title={"Stoplight"} onPress={updateTrip(trip.stoplight)}/>
-                <Button title={"Train"} onPress={updateTrip(trip.train)}/>
-                <Button title={"Drop-off"} onPress={updateTrip(trip.dropOff)}/>
-                <Button title={"Complete"} onPress={updateTrip(trip.complete)}/>
-            </View>)
-        case "stopped":
-            return (<View style={styles.container}>
-                <Button title={"Go"} onPress={updateTrip(trip.go)}/>
-            </View>)
-        case "completed":
-            return (<View style={styles.container}>
-                <Button title={"New Trip"} onPress={() => {
-                    tripRepository.nextTrip().then(result => result.map(setTrip))
-                }}/>
-            </View>)
-    }
+    //
+    // const updateTrip = (fn: () => Trip) => async () => {
+    //     const nextTrip = fn()
+    //     console.log(nextTrip.innerTrip().events())
+    //     const result = await tripRepository.save(nextTrip.innerTrip())
+    //     result.map(() => setTrip(nextTrip)).mapError(setErrorMessage)
+    // }
+    //
+    // // SHOW SEGMENT DURATION IF NOT PENDING OR COMPLETED
+    // // SHOW TOTAL DURATION IF NOT PENDING OR COMPLETED
+    //
+    // switch (trip.type) {
+    //     case "pending":
+    //         return (<View style={styles.container}>
+    //             <Button title={"Load Trip"} onPress={() => {
+    //                 tripRepository.nextTrip().then((result) => {
+    //                     result.map(setTrip)
+    //                 })
+    //             }}/>
+    //             <Button title={"Start"} onPress={updateTrip(trip.start)}/>
+    //         </View>)
+    //     case "moving":
+    //         return (<View style={styles.container}>
+    //             <Button title={"Stoplight"} onPress={updateTrip(trip.stoplight)}/>
+    //             <Button title={"Train"} onPress={updateTrip(trip.train)}/>
+    //             <Button title={"Drop-off"} onPress={updateTrip(trip.dropOff)}/>
+    //             <Button title={"Complete"} onPress={updateTrip(trip.complete)}/>
+    //         </View>)
+    //     case "stopped":
+    //         return (<View style={styles.container}>
+    //             <Button title={"Go"} onPress={updateTrip(trip.go)}/>
+    //         </View>)
+    //     case "inbound-selection":
+    //         return (<View style={styles.container}>
+    //             <PickerIOS onValueChange={value => trip.assignInboundRoute(value as string)}>
+    //                 {routes.map(route => (<PickerIOS.Item key={route} value={route} label={route}/>))}
+    //             </PickerIOS>
+    //             <Button title={"Assign Route"} />
+    //         </View>)
+    //     case "outbound-selection":
+    //         return (<View style={styles.container}>
+    //             <Text>OUTBOUND</Text>
+    //             <Picker style={styles.pickerStyles} onValueChange={value => {
+    //                 setSelectedRoute(value)
+    //                 console.log("Selected: " + value)
+    //                 trip.assignOutboundRoute(value as string)
+    //             }} selectedValue={selectedRoute} numberOfLines={2} enabled={true} placeholder={"SELECT"} mode={"dropdown"}>
+    //                 {routes.map(route => (<Picker.Item value={route} label={route} key={route}/>))}
+    //             </Picker>
+    //             <Button title={"Assign Route"} onPress={() => {
+    //                 if (selectedRoute) {
+    //                     updateTrip(() => trip.assignOutboundRoute(selectedRoute as string))
+    //             }}} />
+    //         </View>)
+    //     case "completed":
+    //         return (<View style={styles.container}>
+    //             <Button title={"New Trip"} onPress={() => {
+    //                 tripRepository.nextTrip().then(result => result.map(setTrip))
+    //             }}/>
+    //         </View>)
+    // }
 }
 
 const styles = StyleSheet.create({
@@ -167,5 +203,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    pickerStyles:{
+        width:'70%',
+        color:'black'
+    }
 });
 
