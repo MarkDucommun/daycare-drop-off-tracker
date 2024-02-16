@@ -1,10 +1,11 @@
 import * as SQLite from "expo-sqlite";
 import * as FileSystem from "expo-file-system";
-import {createSqlExecutor, dbTransactionCreator, getTripRepositoryToo, Row, Transaction} from "./tripRepository";
-import {doOnError, failure, flatMapAsync, map, Result, todo} from "./results";
+import {doOnError, doOnSuccess, extractKey, failure, flatMap, flatMapAsync, map, Result, todo} from "./results";
 import {ResultSet} from "expo-sqlite";
 import {createTransactionCreator} from "./databaseAccess";
 import {MovingTrip, PendingTrip, StoppedTrip, Trip, TripRepository} from "./trip";
+import {buildDbTripRepository} from "./repository/tripRepository";
+import {buildInnerTrip, buildInnerTripState, emptyInnerTripState} from "./repository/nextTrip";
 
 
 export async function cleanDatabaseFile() {
@@ -15,7 +16,49 @@ export async function cleanDatabaseFile() {
 
     const db = SQLite.openDatabase("db-integration-test.db");
 
-    const transactionCreator = createTransactionCreator(db);
+    const innerTripState = emptyInnerTripState(1);
+    innerTripState.locations.push({id: null, name: 'one'}, {id: null, name: 'two'})
+    innerTripState.routesToo!!['one'] = {
+        two: [{id: null, name: 'a', }]
+    }
+    innerTripState.routesToo!!['two'] = {
+        one: [{id: null, name: 'b'}]
+    }
+
+    buildDbTripRepository(db)()
+        .then(doOnSuccess(_ => console.log("GOT THE REPO")))
+        .then(flatMapAsync(repository =>
+            repository.save(buildInnerTrip(innerTripState))
+                .then(doOnSuccess(_ => console.log("TRIP SAVED")))
+                .then(flatMapAsync(_ => {
+                    return repository.nextTrip()
+                }))
+                .then(doOnSuccess(trip => {
+                    const persistedLocations = trip.innerTrip().locations();
+
+                    console.log(persistedLocations)
+
+                    console.log(trip.innerTrip().routes({one: 'one', two: 'two'}))
+                    console.log(trip.innerTrip().routes({one: 'two', two: 'one'}))
+
+                    // expect(persistedLocations).toHaveLength(2)
+                    // expect(persistedLocations.map(extractKey('id'))).toEqual([1, 2])
+                    //
+                    // const routesOne = trip.innerTrip().routes({one: 'one', two: 'two'});
+                    // expect(routesOne).toHaveLength(1)
+                    // expect(routesOne[0].name).toEqual('a')
+                    // expect(routesOne[0].id).not.toBeNull()
+                    //
+                    // const routesTwo = trip.innerTrip().routes({one: 'two', two: 'one'});
+                    // expect(routesOne).toHaveLength(1)
+                    // expect(routesOne[0].name).toEqual('b')
+                    // expect(routesOne[0].id).not.toBeNull()
+                }))
+        ))
+        .then(doOnError(console.log))
+        .then(doOnError(e => { throw Error("Failed: " + e) }))
+
+    // const transactionCreator = createTransactionCreator(db);
 
     // TODO rollback should happen when the InTransaction fn returns a failure
 
@@ -108,22 +151,9 @@ export async function cleanDatabaseFile() {
             }))
     }
 
-    // getTripRepositoryToo(transactionCreator)
-    //     .then(flatMapAsync(repo => repo.getRoutes()))
-    //     .then(map(console.log))
-
-    getTripRepositoryToo(transactionCreator)
-        .then(flatMapAsync(doSomeTripStuff))
-        .then(doOnError(console.log))
-        .then(map(console.log))
-
 
 }
 
-// start trip
-// stoplight
-// stoplight
-// train
-// dropoff
-// select route
-// go
+const useTripRepository = () => {
+
+}

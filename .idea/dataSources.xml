@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:sqlite:$USER_HOME$/Library/Developer/CoreSimulator/Devices/D2794485-769F-4B07-BC01-83B3348FD741/data/Containers/Data/Application/DB95877C-01ED-43B8-A437-F2AB9FC37AB5/Documents/ExponentExperienceData/@anonymous/daycare-dropoff-tracker-e247fcb6-b01c-42e8-b7e9-0fb5d606232b/SQLite/daycare-dropoff-v2.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="db-integration-test.db" uuid="bfa696bc-2273-40b7-965d-176b8e576eec">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:$USER_HOME$/Library/Developer/CoreSimulator/Devices/D2794485-769F-4B07-BC01-83B3348FD741/data/Containers/Data/Application/DB95877C-01ED-43B8-A437-F2AB9FC37AB5/Documents/ExponentExperienceData/@anonymous/daycare-dropoff-tracker-e247fcb6-b01c-42e8-b7e9-0fb5d606232b/SQLite/db-integration-test.db</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

@@ -1,22 +1,28 @@
 import {
+    AtDestinationTrip, CompleteTrip,
+    DestinationSelector,
     Event, EventState,
-    InnerRoutes,
     InnerTrip,
     InnerTripState,
     Location,
-    LocationPair, LocationState, LocationType, Route, RouteInfo, RouteState,
-    TripTransaction,
-    UnsavedRoute, UnsavedRouteName
+    LocationPair,
+    LocationState,
+    LocationType, MovingTrip, OriginSelector, PendingTrip,
+    Route,
+    RouteMap, RouteSelector,
+    RouteState, StoplightTrip, StoppedTrip, Trip, TripActionResult,
+    TripTransaction, UnsavedEvent, UnsavedLocationEvent,
+    UnsavedRoute, UnsavedRouteEvent,
+    UnsavedRouteName, UnsavedSimpleEvent
 } from "../tripToo";
 import {failure, Result, success, successIfDefined, todo, todoFn, traverse} from "../results";
-import {Trip} from "../trip";
 
 type GetNextTrip = (lastTrip: AllData) => Result<string, Trip>
 type BuildNextTrip = (innerTrip: InnerTrip) => Trip
 type BuildInnerTrip = (innerTripState: InnerTripState) => InnerTrip
 type BuildInnerTripState = (lastTrip: AllData) => Result<string, InnerTripState>
 type BuildLocations = (locations: Array<LocationData>) => Result<string, Array<Location>>
-type BuildRoutes = (routes: Array<RouteData>, locations: Array<LocationData>) => Result<string, InnerRoutes>
+type BuildRoutesToo = (routes: Array<RouteData>, locations: Array<LocationData>) => Result<string, RouteMap>
 type BuildEvents = (
     routes: Array<RouteData>,
     locations: Array<LocationData>,
@@ -25,17 +31,131 @@ type BuildEvents = (
     eventRoutes: Array<EventRouteData>
 ) => Result<string, Array<Event>>
 
-const getNextTrip: GetNextTrip = (lastTrip) =>
+export const getNextTrip: GetNextTrip = (lastTrip) =>
     buildInnerTripState(lastTrip)
         .map(buildInnerTrip)
         .map(buildNextTrip)
 
-const buildNextTrip: BuildNextTrip = (innerTrip): Trip => {
-
-    if (innerTrip.lastEvent() == null) {
-        throw Error("NOT IMPLEMENTED")
+export const buildNextTrip: BuildNextTrip = (innerTrip): Trip => {
+    const lastEvent = innerTrip.lastEvent();
+    if (lastEvent == null) {
+        return buildOriginSelector(innerTrip)
+    } else if (typeof lastEvent.state == 'string') {
+        throw Error("NOT IMPLEMENTED - string")
+    } else if ('route' in lastEvent.state) {
+        throw Error("NOT IMPLEMENTED - route")
     } else {
-        throw Error("NOT IMPLEMENTED")
+        throw Error("NOT IMPLEMENTED - location")
+    }
+}
+
+const buildOriginSelector = (innerTrip: InnerTrip): OriginSelector => ({
+    type: "origin-selection",
+    innerTrip: () => innerTrip,
+    selectOrigin: buildNextTripWithCommitNameState(
+        innerTrip,
+        buildPendingTrip,
+        (name) => ({location: name, type: "origin"})
+    ),
+    locations: () => innerTrip.locations().map(({name}) => name)
+})
+
+const buildPendingTrip = (innerTrip: InnerTrip): PendingTrip => ({
+    type: "pending",
+    innerTrip: () => innerTrip,
+    start: buildNextTripWithCommit(innerTrip, buildMovingTrip, 'moving')
+})
+
+const buildMovingTrip = (innerTrip: InnerTrip): MovingTrip => ({
+    type: "moving",
+    innerTrip: () => innerTrip,
+    stoplight: buildNextTripWithCommit(innerTrip, buildStoplightTrip, 'stoplight'),
+    train: buildNextTripWithCommit(innerTrip, buildTrainTrip, 'train'),
+    destination: buildNextTripWithCommit(innerTrip, buildDestinationSelectorTrip, 'destination')
+})
+
+type BuildNextTripWithCommit = <T extends Trip>(
+    innerTrip: InnerTrip,
+    buildNextTrip: (innerTrip: InnerTrip) => T,
+    state: EventState
+) => () => TripActionResult<T>
+
+type BuildNextTripWithCommitWithName = <T extends Trip>(
+    innerTrip: InnerTrip,
+    buildNextTrip: (innerTrip: InnerTrip) => T,
+    state: (name: string) => EventState
+) => (name: string) => TripActionResult<T>
+
+const buildNextTripWithCommit: BuildNextTripWithCommit = <T extends Trip>(innerTrip: InnerTrip, buildNextTrip: (innerTrip: InnerTrip) => T, state: EventState) => {
+    return () => buildNextTripWithCommitNameState(innerTrip, buildNextTrip, () => state)("")
+}
+
+const buildNextTripWithCommitNameState: BuildNextTripWithCommitWithName = <T extends Trip>(innerTrip: InnerTrip, buildNextTrip: (innerTrip: InnerTrip) => T, state: (name: string) => EventState) => (name: string) => {
+    return innerTrip
+        .startTransaction()
+        .flatMap(transaction =>
+            transaction.addEvent(state(name))
+                .map(_ => transaction.commit)
+        )
+        .map(commit => ({nextTrip: buildNextTrip(innerTrip), commit}))
+}
+
+const buildStoplightTrip = (innerTrip: InnerTrip): StoplightTrip => {
+    return {
+        type: "stoplight",
+        innerTrip: () => innerTrip,
+        go: buildNextTripWithCommit(innerTrip, buildMovingTrip, 'moving'),
+        train: buildNextTripWithCommit(innerTrip, buildTrainTrip, 'train'),
+    }
+}
+const buildTrainTrip = (innerTrip: InnerTrip): StoppedTrip => {
+    return {
+        type: "stopped",
+        innerTrip: () => innerTrip,
+        go: buildNextTripWithCommit(innerTrip, buildMovingTrip, 'moving'),
+    }
+}
+
+const buildDestinationSelectorTrip = (innerTrip: InnerTrip): DestinationSelector => {
+    return {
+        type: "destination-selection",
+        innerTrip: () => innerTrip,
+        selectDestination: buildNextTripWithCommitNameState(
+            innerTrip,
+            buildRouteSelectorTrip,
+            (name) => ({location: name, type: "destination"})
+        ),
+        locations: () => innerTrip.locations().map(({name}) => name)
+    }
+}
+
+const buildRouteSelectorTrip = (innerTrip: InnerTrip): RouteSelector => {
+    return {
+        type: "route-selection",
+        innerTrip: () => innerTrip,
+        selectRoute: buildNextTripWithCommitNameState(
+            innerTrip,
+            buildAtDestinationTrip,
+            (name) => ({route: name})
+        ),
+        routes: () => innerTrip.routes(innerTrip.lastLocations()).map(({name}) => name)
+    }
+}
+
+const buildAtDestinationTrip = (innerTrip: InnerTrip): AtDestinationTrip => {
+    return {
+        type: "at-destination",
+        innerTrip: () => innerTrip,
+        go: buildNextTripWithCommit(innerTrip, buildMovingTrip, 'moving'),
+        complete: buildNextTripWithCommit(innerTrip, buildCompleteTrip, 'complete'),
+    }
+}
+
+const buildCompleteTrip = (innerTrip: InnerTrip): CompleteTrip => {
+    return {
+        type: "complete",
+        innerTrip: () => innerTrip,
+        summary: () => { throw Error("BANG") }
     }
 }
 
@@ -58,16 +178,47 @@ const startTripTransaction: StartTripTransaction = (
             const nextState: InnerTripState = {
                 id: currentState.id,
                 locations: [...currentState.locations],
-                routes: {...currentState.routes},
+                routesToo: {...currentState.routesToo}, // TODO fully copy everything except the Route objects
                 events: [...currentState.events]
             }
 
             return {
-                addEvent: (state) => checkIfCommitted().flatMap(todoFn()),
-                unsavedLocations: () => checkIfCommitted().map(() => nextState.locations.filter(({id}) => id == null)),
+                addEvent: (state) => checkIfCommitted().flatMap(_ => {
+                    nextState.events.unshift({
+                        id: null,
+                        state,
+                        timestamp: Date.now(),
+                        order: (nextState.events[0]?.order || 0) + 1,
+                    } as Event)
+                    if (typeof state == "object") {
+                        if ('route' in state) {
+                            // look for the last two location events
+                            const locations = nextState.events
+                                .filter(it => typeof it.state == "object" && 'location' in it.state)
+                                .map(it => it.state as LocationState)
+                                .slice(0, 2)
+
+                            if (locations.length != 2)
+                                return failure("Must select two selections before selecting a route")
+
+                            const locationOne = locations[1].location;
+                            const locationTwo = locations[0].location;
+                            const outerMap = nextState.routesToo!![locationOne] || {}
+                            const innerArray = outerMap[locationTwo] || []
+                            if (!innerArray.find(({name}) => name == state.route)) {
+                                outerMap[locationTwo] = [...innerArray, {id: null, name: state.route}]
+                                nextState.routesToo!![locationOne] = outerMap
+                            }
+                        } else if (!nextState.locations.find(({name}) => name == state.location)) {
+                            nextState.locations.push({name: state.location, id: null})
+                        }
+                    }
+                    return success(null)
+                }),
+                unsavedLocations: () => checkIfCommitted().map(_ => nextState.locations.filter(({id}) => id == null)),
                 unsavedRoutes: () => checkIfCommitted().flatMap(_ => {
-                    const map = nextState.routes.unsaved()
-                        .map(({locationOne, locationTwo, name, setRouteId}): Result<string, UnsavedRoute> => {
+                    const map = unsavedRoutes(nextState.routesToo!!)
+                        .map(({locationOne, locationTwo, name, setRouteId}) => {
                             return locationId(nextState, locationOne)
                                 .map(locationOneId => ({locationOneId}))
                                 .flatMap(unsavedRoute => {
@@ -77,17 +228,77 @@ const startTripTransaction: StartTripTransaction = (
                                             locationTwoId,
                                             name,
                                             setRouteId
-                                        }))
+                                        }) as UnsavedRoute)
                                 })
                         });
                     return traverse(map)
                 }),
-                unsavedEvents: () => checkIfCommitted().flatMap(todoFn()),
-                rollback: () => checkIfCommitted().flatMap(todoFn()),
+                unsavedEvents: () => checkIfCommitted().map(_ => {
+                    const map: UnsavedEvent[] = nextState.events.filter(({id}) => !id).map(event => {
+                        if (typeof event.state == "string") {
+                            return {
+                                type: 'simple',
+                                state: event.state,
+                                order: event.order,
+                                timestamp: event.timestamp,
+                                setEventId: (id) => event.id = id
+                            }
+                        } else if ('location' in event.state) {
+                            const state = event.state;
+                            const newVar: UnsavedLocationEvent = {
+                                type: 'location',
+                                state: 'location',
+                                order: event.order,
+                                timestamp: event.timestamp,
+                                setEventId: (id) => event.id = id,
+                                getEventId: () => successIfDefined(event.id),
+                                getLocationId: () => locationId(nextState, state.location)
+                            };
+                            return newVar
+                        } else {
+                            const state = event.state;
+                            const newVar: UnsavedRouteEvent = {
+                                type: 'route',
+                                state: 'location',
+                                order: event.order,
+                                timestamp: event.timestamp,
+                                setEventId: (id) => event.id = id,
+                                getEventId: () => successIfDefined(event.id),
+                                getRouteId: () => nextState.
+                            };
+                        }
+                    });
+
+                    return map
+                }),
+                rollback: () => checkIfCommitted().flatMap(todoFn("NO ROLLBACK")),
                 commit: () => checkIfCommitted().flatMap(() => commitTransaction(nextState))
             };
         })
 }
+
+type UnsavedRoutes = (routeMap: RouteMap) => Array<UnsavedRouteName>
+
+const unsavedRoutes: UnsavedRoutes = (routeMap) =>
+    Object.keys(routeMap).flatMap(locationOne =>
+        Object.keys(routeMap[locationOne]).flatMap(locationTwo =>
+            routeMap[locationOne][locationTwo]
+                .filter(({id}) => id == null)
+                .flatMap((route): UnsavedRouteName => ({
+                    setRouteId: (id) => route.id = id,
+                    name: route.name,
+                    locationOne,
+                    locationTwo
+                }))))
+
+type RoutesForLocation = (routeMap: RouteMap, locationPair: LocationPair) => Array<Route>
+
+const routesForLocation: RoutesForLocation = (routeMap, {one, two}) => {
+    const locationOneMap = routeMap[one];
+    if (locationOneMap == null) return []
+    return locationOneMap[two] || [];
+}
+
 
 const locationId = (state: InnerTripState, location: string): Result<string, number> =>
     state.locations
@@ -97,8 +308,7 @@ const locationId = (state: InnerTripState, location: string): Result<string, num
         .filter(it => it.type == 'success')[0]
     || failure("Could not find persisted location")
 
-
-const buildInnerTrip: BuildInnerTrip = (innerTripState): InnerTrip => {
+export const buildInnerTrip: BuildInnerTrip = (innerTripState): InnerTrip => {
 
     let currentState = innerTripState
     let lastState: InnerTripState | null = null
@@ -109,9 +319,25 @@ const buildInnerTrip: BuildInnerTrip = (innerTripState): InnerTrip => {
     return ({
         id: () => currentState.id,
         events: () => currentState.events,
-        routes: currentState.routes.forLocations,
+        routes: (locations) => {
+            if (locations == null) return []
+            return routesForLocation(currentState.routesToo!!, locations);
+        },
         locations: () => currentState.locations,
         lastEvent: () => currentState.events.length == 0 ? null : currentState.events[0],
+        lastLocations: () => {
+            const locations = currentState.events
+                .filter(it => typeof it.state == "object" && 'location' in it.state)
+                .map(it => it.state as LocationState)
+                .slice(0, 2)
+
+            if (locations.length != 2)
+                return null
+
+            const locationOne = locations[1].location;
+            const locationTwo = locations[0].location;
+            return {one: locationOne, two: locationTwo}
+        },
         startTransaction: () => startTripTransaction(
             currentState,
             () => checkIfTransactionOpen().map(() => {
@@ -129,7 +355,7 @@ const buildInnerTrip: BuildInnerTrip = (innerTripState): InnerTrip => {
     })
 }
 
-const buildInnerTripState: BuildInnerTripState = (
+export const buildInnerTripState: BuildInnerTripState = (
     {
         tripData,
         locationsData,
@@ -143,8 +369,8 @@ const buildInnerTripState: BuildInnerTripState = (
     return buildLocations(locationsData)
         .map(locations => ({locations}))
         .flatMap(innerTrip =>
-            buildRoutes(routesData, locationsData)
-                .map(routes => ({...innerTrip, routes})))
+            buildRoutesToo(routesData, locationsData)
+                .map(routesToo => ({...innerTrip, routesToo})))
         .flatMap(innerTrip =>
             buildEvents(routesData, locationsData, eventsData, eventLocationsData, eventRoutesData)
                 .map(events => ({...innerTrip, events})))
@@ -152,61 +378,33 @@ const buildInnerTripState: BuildInnerTripState = (
         .map(innerTrip => innerTrip as InnerTripState)
 }
 
+export const emptyInnerTripState = (tripId: number): InnerTripState => {
+    return {
+        locations: [],
+        routesToo: {},
+        events: [],
+        id: tripId
+    }
+}
+
 export const buildLocations: BuildLocations = (locations) => {
     return success(locations.map(({name}) => ({name}) as Location));
 }
 
-export const buildRoutes: BuildRoutes = (routes, locations) => {
+export const buildRoutesToo: BuildRoutesToo = (routes, locations) => {
     const locationNameFinder = locationName(locations)
     const routeResults = routes.map(({name, id, location_two_id, location_one_id}) => {
         return locationNameFinder(location_one_id)
             .map(locationOneName => ({locationOneName}))
-            .flatMap(route => locationNameFinder(location_two_id).map(locationTwoName => ({...route, locationTwoName})))
+            .flatMap(route => locationNameFinder(location_two_id).map(locationTwoName => ({
+                ...route,
+                locationTwoName
+            })))
             .map(route => ({...route, name, id} as RouteInternal))
     })
 
     return traverse(routeResults)
         .map(routes => routes.reduce<RouteMap>(routeReduce, {}))
-        .map(routeMap => {
-            const unsavedRouteMap: UnsavedRouteMap = {}
-
-            return ({
-                forLocations: ({one, two}) => {
-                    const locationOneMap = routeMap[one];
-                    if (locationOneMap == null) return []
-                    return locationOneMap[two] || [];
-                },
-                unsaved: (): Array<UnsavedRouteName> => {
-                    return Object.keys(unsavedRouteMap).flatMap(locationOne => {
-                        return Object.keys(unsavedRouteMap[locationOne]).flatMap(locationTwo => {
-                            return unsavedRouteMap[locationOne][locationTwo].flatMap((name): UnsavedRouteName => {
-                                return {
-                                    setRouteId: (id) => {
-                                        unsavedRouteMap[locationOne][locationTwo] =
-                                            unsavedRouteMap[locationOne][locationTwo]
-                                                .filter(name => name != name)
-
-                                        const outerMap = routeMap[locationOne] || {}
-                                        const innerArray = outerMap[locationTwo] || []
-                                        outerMap[locationTwo] = [...innerArray, {id, name}]
-                                        routeMap[locationOne] = outerMap
-                                    },
-                                    name,
-                                    locationOne,
-                                    locationTwo
-                                }
-                            })
-                        })
-                    })
-                },
-                add: ({name, locationOne, locationTwo}: RouteInfo) => {
-                    const outerMap = unsavedRouteMap[locationOne] || {}
-                    const innerArray = outerMap[locationTwo] || []
-                    outerMap[locationTwo] = [...innerArray, name]
-                    unsavedRouteMap[locationOne] = outerMap
-                }
-            });
-        })
 }
 
 type RouteInternal = {
@@ -215,10 +413,6 @@ type RouteInternal = {
     locationOneName: string
     locationTwoName: string
 }
-
-type RouteMap = { [key: string]: { [key: string]: Array<Route> } }
-
-type UnsavedRouteMap = { [key: string]: { [key: string]: Array<string> } }
 
 type RouteReduce = (previousValue: RouteMap, currentValue: RouteInternal, currentIndex: number, array: RouteInternal[]) => RouteMap
 
@@ -240,13 +434,13 @@ export const buildEvents: BuildEvents = (
     eventRoutes
 ) => {
 
-    const eventResults = events.map(({id, state, timestamp, order }): Result<string, Event> => {
+    const eventResults = events.map(({id, state, timestamp, order}): Result<string, Event> => {
         switch (state) {
             case 'pending':
             case 'moving':
             case 'stoplight':
             case 'train':
-            case 'destination':
+            case 'at-destination':
             case 'complete':
                 return success({
                     id,
@@ -255,7 +449,7 @@ export const buildEvents: BuildEvents = (
                     order
                 } as Event)
             case 'route-selection':
-                return eventRouteState(routes,eventRoutes,id)
+                return eventRouteState(routes, eventRoutes, id)
                     .map(routeState => ({
                         id,
                         state: routeState,
@@ -306,5 +500,5 @@ type EventLocationState = (locations: Array<LocationData>, eventLocations: Array
 const eventLocationState: EventLocationState = (locations, eventLocations, eventId, type) => {
     return successIfDefined(eventLocations.find(({event_id}) => event_id == eventId))
         .flatMap(({location_id}) => locationName(locations)(location_id))
-        .map(location => ({ location, type }))
+        .map(location => ({location, type}))
 }

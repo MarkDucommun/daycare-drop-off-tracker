@@ -10,6 +10,7 @@ interface Failure<L, R> extends ResultInterface<L, R> {
 
 type ResultInterface<L, R> = {
     map: <NR> (fn: (it: R) => NR) => ResultInterface<L, NR>
+    mapAsync: <NR> (fn: (it: R) => Promise<NR>) => Promise<ResultInterface<L, NR>>
     doOnSuccess: (fn: (it: R) => void) => ResultInterface<L, R>
     flatMap: <NR> (fn: (it: R) => ResultInterface<L, NR>) => ResultInterface<L, NR>
     flatMapAsync: <NR> (fn: (it: R) => Promise<ResultInterface<L, NR>>) => Promise<ResultInterface<L, NR>>
@@ -23,6 +24,9 @@ type ResultInterface<L, R> = {
 
 export const map = <L, R, NR>(fn: (it: R) => NR): (result: Result<L, R>) => Result<L, NR> => (result) =>
     result.map(fn);
+
+export const mapAsync = <L, R, NR>(fn: (it: R) => Promise<NR>): (result: Result<L, R>) => Promise<Result<L, NR>> => (result) =>
+    result.mapAsync(fn);
 
 export const doOnSuccess = <L, R>(fn: (it: R) => void): (result: Result<L, R>) => Result<L, R> => (result) =>
     result.doOnSuccess(fn)
@@ -61,6 +65,7 @@ export const successIfDefined = <R>(value: R | null | undefined): Result<string,
 export function success<L, R>(value: R): Result<L, R> {
     return {
         map: (fn) => success(fn(value)),
+        mapAsync: async (fn) => fn(value).then(it => success(it)),
         doOnSuccess: (fn) => { fn(value); return success(value) },
         flatMap: (fn) => fn(value),
         flatMapAsync: async (fn)=> fn(value),
@@ -76,6 +81,7 @@ export function success<L, R>(value: R): Result<L, R> {
 export function failure<L, R>(error: L): Result<L, R> {
     return {
         map: (_) => failure(error),
+        mapAsync: async (_) => failure(error),
         doOnSuccess: (_) => failure(error),
         flatMap: (_) => failure(error),
         flatMapAsync: async (_) => failure(error),
@@ -99,3 +105,5 @@ export const traverse = <L, R>(results: Array<Result<L, R>>): Result<L, Array<R>
             return previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr]))
         });
 };
+
+export const extractKey = <T extends object, V>(key: keyof T): (t: T) => T[keyof T] => (t: T) => t[key]

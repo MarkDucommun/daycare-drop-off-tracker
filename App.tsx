@@ -1,11 +1,9 @@
 import {StatusBar} from 'expo-status-bar';
 import {Button, StyleSheet, Text, View} from 'react-native';
 import React, {useEffect, useState} from "react";
-import {Trip, TripRepository} from "./src/trip";
-import {getTripRepository} from "./src/tripRepository";
-import * as SQLite from "expo-sqlite";
-import {Picker, PickerIOS} from "@react-native-picker/picker";
-import {ItemValue} from "@react-native-picker/picker/typings/Picker";
+import {TripRepository} from "./src/tripToo";
+import {TripRunner} from "./src/TripRunner";
+import {buildFakeTripRepository} from "./src/repository/tripRepository";
 import {cleanDatabaseFile} from "./src/DatabaseIntegrationTest";
 
 // function openDatabase() {
@@ -82,29 +80,28 @@ import {cleanDatabaseFile} from "./src/DatabaseIntegrationTest";
 // }
 
 
-
 export default function App() {
 
-    useEffect(() => {
-        cleanDatabaseFile().then(() => setErrorMessage("Opened database"))
-    }, []);
+    // useEffect(() => {
+    //     console.log("Running tests")
+    //     cleanDatabaseFile().then(() => setErrorMessage("Opened database"))
+    // }, []);
 
     // TODO build a modal for overall summary of data
     // TODO build a list view that allows for inspecting each trip
     // TODO maybe an admin page for inspecting SQLite instance? Can we export SQLite instance to introspect it?
 
     // const [tripRepository, setTripRepository] = useState<TripRepository>()
-    // const [trip, setTrip] = useState<Trip | undefined>()
-    // const [routes, setRoutes] = useState<Array<string>>([])
+    // // const [trip, setTrip] = useState<Trip | undefined>()
+    // // const [routes, setRoutes] = useState<Array<string>>([])
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
-    // const [selectedRoute, setSelectedRoute] = useState<ItemValue>();
-    //
+    // // const [selectedRoute, setSelectedRoute] = useState<ItemValue>();
+    // //
     // useEffect(() => {
-    //     const tripRepository = getTripRepository(db);
+    //     const tripRepository = buildFakeTripRepository();
     //     setTripRepository(tripRepository)
-    //     // dbTests(tripRepository, setErrorMessage).then()
     // }, []);
-    //
+
     // useEffect(() => {
     //     if (tripRepository != undefined) {
     //         initializeRoutes(tripRepository, routes, setRoutes, setErrorMessage).then()
@@ -112,12 +109,22 @@ export default function App() {
     //     }
     // }, [tripRepository]);
 
-    if (errorMessage != null) {
+
+    // if (errorMessage != null) {
+    //     return (<View style={styles.container}>
+    //         {/*<Text>Error: {errorMessage}</Text>*/}
+    //         <Button title={'Run tests'} onPress={() => cleanDatabaseFile().then()}/>
+    //         <StatusBar style="auto"/>
+    //     </View>)
+    // } else {
         return (<View style={styles.container}>
-            <Text>Error: {errorMessage}</Text>
-            <StatusBar style="auto"/>
+            <Button title={'Run tests'} onPress={cleanDatabaseFile}/>
         </View>)
-    }
+    // }
+
+    // if (tripRepository) {
+    //     return <TripRunner repository={tripRepository}/>
+    // }
 
     // if (routes.length != 0) {
     //     return (<View style={styles.container}>
@@ -203,9 +210,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    pickerStyles:{
-        width:'70%',
-        color:'black'
+    pickerStyles: {
+        width: '70%',
+        color: 'black'
     }
 });
 

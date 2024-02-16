@@ -23,10 +23,11 @@ type SaveInnerTrip = (
     innerTrip: InnerTrip
 ) => Promise<Result<string, null>>
 
-const saveInnerTrip: SaveInnerTrip = async (tripSaver, innerTrip) => {
+export const saveInnerTrip: SaveInnerTrip = async (tripSaver, innerTrip) => {
 
     return innerTrip.startTransaction().flatMapAsync((transaction) => {
         return transaction.unsavedLocations()
+            .doOnSuccess(locations => console.log("LOCATIONS TO BE SAVED", locations))
             .flatMapAsync(locations => {
                 const locationPromises = locations.map(location => {
                     return tripSaver.saveLocation(location.name).then(map(id => {
@@ -62,7 +63,8 @@ const saveInnerTrip: SaveInnerTrip = async (tripSaver, innerTrip) => {
                                 }
                                 if (event.type == 'location') {
 
-                                    return tripSaver.saveEventLocation(event.getEventId(), event.getLocationId())
+                                    return event.getLocationId()
+                                        .flatMapAsync(locationId => tripSaver.saveEventLocation(event.getEventId(), locationId))
                                         .then(map(_ => null))
                                 }
 

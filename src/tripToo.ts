@@ -1,6 +1,6 @@
 import {Result} from "./results";
 
-type Trip = OriginSelector
+export type Trip = OriginSelector
     | PendingTrip
     | MovingTrip
     | StoppedTrip
@@ -10,55 +10,69 @@ type Trip = OriginSelector
     | AtDestinationTrip
     | CompleteTrip
 
-type OriginSelector = {
+interface WithInnerTrip {
+    innerTrip: () => InnerTrip
+}
+
+export type NextTripWithCommit<T extends Trip> = {
+    commit: () => Result<string, null>,
+    nextTrip: T
+}
+
+export type OriginSelector = {
     type: "origin-selection"
-    selectOrigin: (name: string) => PendingTrip,
+    selectOrigin: (name: string) => TripActionResult<PendingTrip>
     locations: () => Array<string>
-}
+} & WithInnerTrip
 
-type PendingTrip = {
+export type PendingTrip = {
     type: "pending"
-    start: () => MovingTrip
-}
+    start: () => TripActionResult<MovingTrip>
+} & WithInnerTrip
 
-type MovingTrip = {
+export type TripActionResult<T extends Trip> = Result<string, NextTripWithCommit<T>>
+
+export type MovingTrip = {
     type: "moving"
-    stoplight: () => StoplightTrip
-    train: () => StoppedTrip
-    destination: () => DestinationSelector
-}
+    stoplight: () => TripActionResult<StoplightTrip>
+    train: () => TripActionResult<StoppedTrip>
+    destination: () => TripActionResult<DestinationSelector>
+} & WithInnerTrip
 
-type StoppedTrip = {
+export type StoppedTrip = {
     type: "stopped",
-    go: () => void
-}
+} & TripWithGo
 
-type StoplightTrip = {
+export type TripWithGo = {
+    go: () => TripActionResult<MovingTrip>
+} & WithInnerTrip
+
+export type StoplightTrip = {
     type: "stoplight",
-    train: () => StoppedTrip
-} & StoppedTrip
+    train: () => TripActionResult<StoppedTrip>
+} & TripWithGo
 
-type DestinationSelector = {
+export type DestinationSelector = {
     type: "destination-selection"
-    selectDestination: (name: string) => RouteSelector,
+    selectDestination: (name: string) => TripActionResult<RouteSelector>,
     locations: () => Array<string>
-}
+} & WithInnerTrip
 
-type RouteSelector = {
+export type RouteSelector = {
     type: "route-selection"
-    selectRoute: (name: string) => AtDestinationTrip,
+    selectRoute: (name: string) => TripActionResult<AtDestinationTrip>,
     routes: () => Array<string>
-}
+} & WithInnerTrip
 
-type AtDestinationTrip = {
+export type AtDestinationTrip = {
     type: "at-destination",
-    complete: () => CompleteTrip
-} & StoppedTrip
+    complete: () => TripActionResult<CompleteTrip>
+} & TripWithGo
 
-type CompleteTrip = {
+export type CompleteTrip = {
     type: "complete",
     summary: () => TripSummary
-}
+} & WithInnerTrip
 
 type TripSummary = {
     startTime: number,
@@ -100,9 +114,10 @@ export type LocationType = "origin" | "destination"
 export type InnerTrip = {
     id: () => number,
     events: () => Array<Event>
-    routes: (locations: LocationPair) => Array<Route>
+    routes: (locations: LocationPair | null) => Array<Route>
     locations: () => Array<Location>
     lastEvent: () => Event | null
+    lastLocations: () => LocationPair | null
     startTransaction: () => Result<string, TripTransaction>
 }
 
@@ -141,28 +156,24 @@ export type UnsavedSimpleEvent = {
 
 export type UnsavedRouteEvent = {
     type: 'route'
-    getEventId: () => number
-    getRouteId: () => number
+    getEventId: () => Result<string, number>
+    getRouteId: () => Result<string, number>
 } & UnsavedEventCore
 
 export type UnsavedLocationEvent = {
     type: 'location'
-    getEventId: () => number
-    getLocationId: () => number
+    getEventId: () => Result<string, number>
+    getLocationId: () => Result<string, number>
 } & UnsavedEventCore
 
 export type InnerTripState = {
     id: number
     events: Array<Event>
     locations: Array<Location>
-    routes: InnerRoutes
+    routesToo?: RouteMap
 }
 
-export type InnerRoutes = {
-    forLocations: (locations: LocationPair) => Array<Route>
-    unsaved: () => Array<UnsavedRouteName>
-    add: (route: RouteInfo) => void
-}
+export type RouteMap = { [key: string]: { [key: string]: Array<Route> } }
 
 export type Location = {
     id: number | null
@@ -192,7 +203,7 @@ export type Event = {
     order: number
 }
 
-type TripRepository = {
+export type TripRepository = {
     nextTrip: () => Promise<Result<string, Trip>>
     save: (trip: InnerTrip) => Promise<Result<string, null>>
 }
