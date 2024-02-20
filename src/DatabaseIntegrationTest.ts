@@ -1,11 +1,11 @@
 import * as SQLite from "expo-sqlite";
 import * as FileSystem from "expo-file-system";
-import {doOnError, doOnSuccess, extractKey, failure, flatMap, flatMapAsync, map, Result, todo} from "./results";
-import {ResultSet} from "expo-sqlite";
-import {createTransactionCreator} from "./databaseAccess";
-import {MovingTrip, PendingTrip, StoppedTrip, Trip, TripRepository} from "./trip";
-import {buildDbTripRepository} from "./repository/tripRepository";
-import {buildInnerTrip, buildInnerTripState, emptyInnerTripState} from "./repository/nextTrip";
+import {doOnError, doOnSuccess, failure, flatMapAsync, map, Result} from "./utilities/results";
+import {createTransactionCreator} from "./utilities/databaseAccess";
+import {buildDbTripRepository, insertTrip} from "./repository/tripRepository";
+import {buildInnerTrip, emptyInnerTripState} from "./repository/nextTrip";
+import {ensureTablesExist} from "./repository/tripMigration";
+import {createLogger} from "./utilities/logger";
 
 
 export async function cleanDatabaseFile() {
@@ -16,47 +16,100 @@ export async function cleanDatabaseFile() {
 
     const db = SQLite.openDatabase("db-integration-test.db");
 
-    const innerTripState = emptyInnerTripState(1);
-    innerTripState.locations.push({id: null, name: 'one'}, {id: null, name: 'two'})
-    innerTripState.routesToo!!['one'] = {
-        two: [{id: null, name: 'a', }]
-    }
-    innerTripState.routesToo!!['two'] = {
-        one: [{id: null, name: 'b'}]
+
+    type TestThing = {
+        id: number;
+        name: string | null
     }
 
-    buildDbTripRepository(db)()
-        .then(doOnSuccess(_ => console.log("GOT THE REPO")))
-        .then(flatMapAsync(repository =>
-            repository.save(buildInnerTrip(innerTripState))
-                .then(doOnSuccess(_ => console.log("TRIP SAVED")))
-                .then(flatMapAsync(_ => {
-                    return repository.nextTrip()
+    // ROW MAPPER TEST
+    // createTransactionCreator(db)((executor): Promise<Result<string, null>> => {
+    //     return executor("create table if not exists tests (id INTEGER PRIMARY KEY NOT NULL, name TEXT);")
+    //         .then(_ => executor("INSERT INTO tests (name) VALUES ('test')"))
+    //         .then(_ => executor("INSERT INTO tests DEFAULT VALUES ;"))
+    //         .then(_ => executor("SELECT * FROM tests;"))
+    //         .then(flatMap((resultSet): Result<string, TestThing[]> => {
+    //             const extractRowsDataForType1: ({rows}: ResultSet) => Result<string, TestThing[]> = extractRowsDataForType<TestThing, keyof TestThing>(
+    //                 {key: 'id', type: 'number', nullable: false},
+    //                 {key: 'name', type: 'string', nullable: true}
+    //             );
+    //             return extractRowsDataForType1(resultSet);
+    //         }))
+    //         .then(doOnSuccess(_ => console.log("GOT THE ROWS")))
+    //         .then(doOnSuccess(console.log))
+    //         .then(map(_ => null))
+    // })
+
+    const logger = createLogger("test", "TRACE");
+
+    logger.fatal("FATAL")
+    logger.error("ERROR")
+    logger.warn("WARN")
+    logger.info("INFO")
+    logger.debug("DEBUG")
+    logger.trace("TRACE")
+
+    // logger.setLevel("DEBUG")
+
+    // return;
+    return createTransactionCreator(db)((executor) => ensureTablesExist(executor).then(flatMapAsync(_ => insertTrip(executor, logger)())))
+        .then(doOnSuccess(tripId => logger.info(`TRIP ${tripId} INSERTED`)))
+        .then(flatMapAsync(tripId => {
+            const innerTripState = emptyInnerTripState(tripId);
+            innerTripState.locations.push({id: null, name: 'one'}, {id: null, name: 'two'})
+            innerTripState.routes['one'] = {
+                two: [{id: null, name: 'a',}]
+            }
+            innerTripState.routes['two'] = {
+                one: [{id: null, name: 'b'}]
+            }
+            innerTripState.events.unshift({id: null, state: {location: 'one', type: "origin"}, timestamp: 1, order: 1})
+            innerTripState.events.unshift({id: null, state: 'moving', timestamp: 1, order: 3})
+            innerTripState.events.unshift({id: null, state: 'destination', timestamp: 1, order: 4})
+            innerTripState.events.unshift({id: null, state: {location: 'two', type: "destination"}, timestamp: 1, order: 5})
+            innerTripState.events.unshift({id: null, state: {route: 'a'}, timestamp: 1, order: 6})
+
+            return buildDbTripRepository(db, logger)()
+                .then(doOnSuccess(_ => logger.info("GOT THE REPO")))
+                .then(flatMapAsync(repository =>
+                    repository.save(buildInnerTrip(innerTripState))
+                        .then(doOnSuccess(_ => logger.info("TRIP SAVED")))
+                        .then(flatMapAsync(_ => {
+                            return repository.nextTrip()
+                        }))
+                        .then(doOnSuccess(trip => {
+                            logger.info("SUCCESS")
+
+                            const persistedLocations = trip.innerTrip().locations();
+
+                            logger.debug("Trip ID: " + trip.innerTrip().id())
+                            logger.debug(persistedLocations)
+
+                            logger.debug(trip.innerTrip().routes({one: 'one', two: 'two'}))
+                            logger.debug(trip.innerTrip().routes({one: 'two', two: 'one'}))
+
+                            logger.debug(trip.innerTrip().events())
+
+                            // expect(persistedLocations).toHaveLength(2)
+                            // expect(persistedLocations.map(extractKey('id'))).toEqual([1, 2])
+                            //
+                            // const routesOne = trip.innerTrip().routes({one: 'one', two: 'two'});
+                            // expect(routesOne).toHaveLength(1)
+                            // expect(routesOne[0].name).toEqual('a')
+                            // expect(routesOne[0].id).not.toBeNull()
+                            //
+                            // const routesTwo = trip.innerTrip().routes({one: 'two', two: 'one'});
+                            // expect(routesOne).toHaveLength(1)
+                            // expect(routesOne[0].name).toEqual('b')
+                            // expect(routesOne[0].id).not.toBeNull()
+                        }))
+                ))
+                .then(doOnError(logger.fatal))
+                .then(doOnError(e => {
+                    throw Error("Failed: " + e)
                 }))
-                .then(doOnSuccess(trip => {
-                    const persistedLocations = trip.innerTrip().locations();
+        }))
 
-                    console.log(persistedLocations)
-
-                    console.log(trip.innerTrip().routes({one: 'one', two: 'two'}))
-                    console.log(trip.innerTrip().routes({one: 'two', two: 'one'}))
-
-                    // expect(persistedLocations).toHaveLength(2)
-                    // expect(persistedLocations.map(extractKey('id'))).toEqual([1, 2])
-                    //
-                    // const routesOne = trip.innerTrip().routes({one: 'one', two: 'two'});
-                    // expect(routesOne).toHaveLength(1)
-                    // expect(routesOne[0].name).toEqual('a')
-                    // expect(routesOne[0].id).not.toBeNull()
-                    //
-                    // const routesTwo = trip.innerTrip().routes({one: 'two', two: 'one'});
-                    // expect(routesOne).toHaveLength(1)
-                    // expect(routesOne[0].name).toEqual('b')
-                    // expect(routesOne[0].id).not.toBeNull()
-                }))
-        ))
-        .then(doOnError(console.log))
-        .then(doOnError(e => { throw Error("Failed: " + e) }))
 
     // const transactionCreator = createTransactionCreator(db);
 
@@ -125,33 +178,6 @@ export async function cleanDatabaseFile() {
     //     return (await executor("SELECT count(*) FROM routes"))
     //         .map(_ => null);
     // });
-
-    const doSomeTripStuff = async (repository: TripRepository) => {
-        return repository.nextTrip()
-            .then(flatMapAsync(async (trip): Promise<Result<string, MovingTrip>> => {
-                if (trip.type != 'pending') return failure("should be pending")
-
-                const pendingTrip = trip as PendingTrip
-
-                const movingTrip = pendingTrip.start();
-
-                return repository.save(movingTrip.innerTrip()).then(map(_ => movingTrip))
-            }))
-            .then(flatMapAsync(repository.nextTrip))
-            .then(flatMapAsync(async (trip): Promise<Result<string, StoppedTrip>> => {
-                console.log("Trip Type: " + trip.type)
-
-                if (trip.type != 'moving') return failure("should be moving")
-
-                const movingTrip = trip as MovingTrip
-
-                const stoppedTrip = movingTrip.stoplight()
-
-                return repository.save(stoppedTrip.innerTrip()).then(map(_ => stoppedTrip))
-            }))
-    }
-
-
 }
 
 const useTripRepository = () => {

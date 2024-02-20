@@ -1,4 +1,4 @@
-import {failure, success, traverse} from "../src/results";
+import {failure, success, traverse} from "../results";
 
 describe("traverse", () => {
     test("returns a success of empty list when list of results is empty", () => {

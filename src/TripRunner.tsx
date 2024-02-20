@@ -1,9 +1,10 @@
-import {NextTripWithCommit, Trip, TripActionResult, TripRepository} from "./tripToo";
+import {NextTripWithCommit, Trip, TripActionResult, TripRepository} from "./trip";
 import React, {useEffect, useState} from "react";
-import {doOnError, doOnSuccess, map, Result} from "./results";
+import {doOnError, doOnSuccess, map, Result} from "./utilities/results";
 import {Button, StyleSheet, Text, View} from "react-native";
 import {StatusBar} from "expo-status-bar";
 import {Selector} from "./Selector";
+import {ItemValue} from "@react-native-picker/picker/typings/Picker";
 
 type TripRunnerProps = {
     repository: TripRepository
@@ -41,12 +42,15 @@ export const TripRunner: React.FC<TripRunnerProps> = ({repository}) => {
 
     const executeTripAction = <T extends Trip>(fn: () => TripActionResult<T>) => () => fn().flatMap(commitAndSetTrip)
 
+    const executeTripActionWithArg = <T extends Trip>(fn: (arg: string) => TripActionResult<T>) =>
+        (arg: ItemValue) => { if (typeof arg == 'string') fn(arg).flatMap(commitAndSetTrip) }
+
     switch (trip.type) {
         case "origin-selection":
             return (<View style={styles.container}>
-                <Selector onConfirmSelection={(item) => {
-                    if (typeof item == 'string') trip.selectOrigin(item).flatMap(commitAndSetTrip)
-                }} values={trip.locations()} selectButtonText={"Select Origin"} enterNewButtonText={"Enter new location"} placeholderText={"New location..."}/>
+                <Selector onConfirmSelection={executeTripActionWithArg(trip.selectOrigin)}
+                          values={trip.locations()} selectButtonText={"Select Origin"}
+                          enterNewButtonText={"Enter new location"} placeholderText={"New location..."}/>
             </View>)
         case "pending":
             return (<View style={styles.container}>
@@ -69,15 +73,15 @@ export const TripRunner: React.FC<TripRunnerProps> = ({repository}) => {
             </View>)
         case "destination-selection":
             return (<View style={styles.container}>
-                <Selector onConfirmSelection={(item) => {
-                    if (typeof item == 'string') trip.selectDestination(item).flatMap(commitAndSetTrip)
-                }} values={trip.locations()} selectButtonText={"Select Destination"} enterNewButtonText={"Enter new location"} placeholderText={"New location..."}/>
+                <Selector onConfirmSelection={executeTripActionWithArg(trip.selectDestination)}
+                          values={trip.locations()} selectButtonText={"Select Destination"}
+                          enterNewButtonText={"Enter new location"} placeholderText={"New location..."}/>
             </View>)
         case "route-selection":
             return (<View style={styles.container}>
-                <Selector onConfirmSelection={(item) => {
-                    if (typeof item == 'string') trip.selectRoute(item).flatMap(commitAndSetTrip)
-                }} values={trip.routes()} selectButtonText={"Select Route"} enterNewButtonText={"Enter new route"} placeholderText={"New route..."}/>
+                <Selector onConfirmSelection={executeTripActionWithArg(trip.selectRoute)}
+                          values={trip.routes()} selectButtonText={"Select Route"}
+                          enterNewButtonText={"Enter new route"} placeholderText={"New route..."}/>
             </View>)
         case "at-destination":
             return (<View style={styles.container}>

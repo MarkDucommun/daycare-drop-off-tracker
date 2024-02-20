@@ -9,6 +9,8 @@ interface Failure<L, R> extends ResultInterface<L, R> {
 }
 
 type ResultInterface<L, R> = {
+    getOrElse: (fn: () => R) => R
+    getOrNull: () => R | null
     map: <NR> (fn: (it: R) => NR) => ResultInterface<L, NR>
     mapAsync: <NR> (fn: (it: R) => Promise<NR>) => Promise<ResultInterface<L, NR>>
     doOnSuccess: (fn: (it: R) => void) => ResultInterface<L, R>
@@ -62,8 +64,22 @@ export const successIfDefinedRaw = <L, R>(value: R | null | undefined, ifNotDefi
 export const successIfDefined = <R>(value: R | null | undefined): Result<string, NonNullable<R>> =>
     successIfDefinedRaw(value, () => "Value was not defined");
 
+export const successIfTruthyRaw = <L, R>(value: R | null | undefined | boolean, ifFalsy: () => L): Result<L, true | NonNullable<R>> =>
+    value ? success(value) : failure(ifFalsy());
+
+export const successIfTruthy = <R>(value: R | null | undefined | boolean): Result<string, true | NonNullable<R>> =>
+    successIfTruthyRaw(value, () => "Value was falsy");
+
+export const successIfFalsyRaw = <L, R>(value: R | null | undefined | boolean, ifTruthy: () => L): Result<L, false> =>
+    value ? failure(ifTruthy()) : success(false);
+
+export const successIfFalsy = <R>(value: R | null | undefined | boolean): Result<string, false> =>
+    successIfFalsyRaw(value, () => "Value was truthy");
+
 export function success<L, R>(value: R): Result<L, R> {
     return {
+        getOrElse: () => value,
+        getOrNull: () => value,
         map: (fn) => success(fn(value)),
         mapAsync: async (fn) => fn(value).then(it => success(it)),
         doOnSuccess: (fn) => { fn(value); return success(value) },
@@ -80,6 +96,8 @@ export function success<L, R>(value: R): Result<L, R> {
 
 export function failure<L, R>(error: L): Result<L, R> {
     return {
+        getOrElse: (fn) => fn(),
+        getOrNull: () => null,
         map: (_) => failure(error),
         mapAsync: async (_) => failure(error),
         doOnSuccess: (_) => failure(error),
@@ -101,9 +119,10 @@ export const traverse = <L, R>(results: Array<Result<L, R>>): Result<L, Array<R>
     if (resultMap.length == 0) return success<L, Array<R>>([])
 
     return resultMap
-        .reduce((previousValue, currentValue) => {
-            return previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr]))
-        });
+        .reduce((previousValue, currentValue) =>
+            previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr])));
 };
 
 export const extractKey = <T extends object, V>(key: keyof T): (t: T) => T[keyof T] => (t: T) => t[key]
+
+export const flatten = <T>(arr: Array<Array<T>>): Array<T> => arr.flatMap(it => it)
