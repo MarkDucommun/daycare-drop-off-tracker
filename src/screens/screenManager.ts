@@ -1,10 +1,11 @@
 import {ReactElement} from "react";
 import {SQLiteDatabase} from "expo-sqlite";
+import {TransactionCreator} from "../utilities/databaseAccess";
 
 export type MenuScreen = {
     type: "menu"
     tripRunner: () => TripRunnerScreen,
-    render: (db: SQLiteDatabase) => ReactElement
+    render: (transactionCreator: TransactionCreator) => ReactElement
 }
 
 export type TripRunnerScreen = {
@@ -17,7 +18,7 @@ export type DatabaseTestScreen = {
 
 export type NonMenuScreen = {
     goToMenu: () => MenuScreen
-    render: (db: SQLiteDatabase) => ReactElement
+    render: (transactionCreator: TransactionCreator) => ReactElement
 }
 
 export type Screeen = MenuScreen | TripRunnerScreen | DatabaseTestScreen
