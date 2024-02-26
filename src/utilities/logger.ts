@@ -1,4 +1,4 @@
-import {doOnSuccess, Result, successIfTruthy} from "./results";
+import {Result, successIfTruthy} from "./results";
 
 export type Logger = {
     fatal: (message?: any, ...optionalParams: any[]) => void
@@ -14,6 +14,8 @@ export type Logger = {
 export type LogLevel = "FATAL" | "ERROR" | "WARN" | "INFO" | "DEBUG" | "TRACE"
 
 type CreateLogger = (tag: string, initialLevel?: LogLevel, color?: keyof Colors) => Logger
+
+type CreateLoggerFromParent = (parent?: Logger) => CreateLogger
 
 type Colors = {
     yellow: "\x1b[93m"
@@ -32,6 +34,10 @@ const colors: Colors = {
     red: "\x1b[31m",
     purple: "\x1b[95m"
 }
+
+export const createLoggerFromParent: CreateLoggerFromParent = (parent) =>
+    (tag, initialLevel, color) =>
+        parent?.createChild(tag, initialLevel) ?? createLogger(tag, initialLevel, color)
 
 export const createLogger: CreateLogger = (tag, initialLevel = "INFO", color: keyof Colors = "lightBlueColor"): Logger => {
     let level: LogLevel = initialLevel

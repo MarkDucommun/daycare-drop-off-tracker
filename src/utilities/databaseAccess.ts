@@ -1,7 +1,7 @@
 import * as SQLite from "expo-sqlite";
-import {failure, Result, success} from "./results";
 import {ResultSet, SQLStatementArg} from "expo-sqlite";
-import {createLogger, Logger} from "./logger";
+import {failure, Result, success} from "./results";
+import {createLoggerFromParent, Logger} from "./logger";
 
 export type Row = { [column: string]: any }
 
@@ -9,18 +9,23 @@ export type ExecuteSQL = (sql: string, args?: (string | number | null)[]) => Pro
 
 export type TransactionCreator = <T>(fn: InTransaction<T>, logger?: Logger) => Promise<Result<string, T>>
 
-export type InTransaction<T> = (executor: ExecuteSQL, pushOnRollback: (fn: () => void) => void) => Promise<Result<string, T>>
+export type PushOnRollback = (fn: () => void) => void
 
-const databaseAccessLogger = createLogger("databaseAccess")
+export type InTransaction<T> = (executor: ExecuteSQL, pushOnRollback: PushOnRollback, logger: Logger) => Promise<Result<string, T>>
 
-export const createTransactionCreator = (database: SQLite.SQLiteDatabase, logger: Logger = databaseAccessLogger): TransactionCreator => {
-    return <T>(fn: (executor: ExecuteSQL, pushOnRollback: (fn: () => void) => void) => Promise<Result<string, T>>, transactionLogger: Logger = databaseAccessLogger) =>
-        new Promise<Result<string, T>>(async (resolve) => {
+export const createTransactionCreator = (database: SQLite.SQLiteDatabase, parentLogger?: Logger): TransactionCreator => {
+
+    const databaseAccessLogger = createLoggerFromParent(parentLogger)("db")
+
+    return <T>(fn: (executor: ExecuteSQL, pushOnRollback: PushOnRollback, logger: Logger) => Promise<Result<string, T>>, parentTransactionLogger: Logger = databaseAccessLogger) => {
+
+        const transactionLogger = parentTransactionLogger.createChild("transaction")
+        return new Promise<Result<string, T>>(async (resolve) => {
             const onRollback: Array<() => void> = []
             let result: Result<string, T> | null = null
             try {
                 await database.transactionAsync(async tx => {
-                    result = await fn(createSqlExecutor(tx, transactionLogger), (rollbackFn) => onRollback.push(rollbackFn));
+                    result = await fn(createSqlExecutor(tx, transactionLogger), (rollbackFn) => onRollback.push(rollbackFn), transactionLogger);
 
                     result.doOnError((e) => {
                         throw Error(e)
@@ -37,6 +42,7 @@ export const createTransactionCreator = (database: SQLite.SQLiteDatabase, logger
             if (result != null) resolve(result)
             else resolve(failure("something went wrong"))
         });
+    };
 }
 
 export function createSqlExecutor(tx: SQLite.SQLTransactionAsync, logger: Logger): ExecuteSQL {

@@ -1,10 +1,10 @@
 import {doOnError, flatMapAsync, flatMapError, map, Result, success, todo, traverse} from "../utilities/results";
-import {EventState, EventStateData, InnerTrip} from "../trip";
+import {EventState, EventStateData, InnerTrip, TripTransaction} from "../tripTypes";
 import {createLogger, Logger} from "../utilities/logger";
 
 type Id = number
 
-type SaveTrip = () => Promise<Result<string, Id>>
+export type SaveTrip = () => Promise<Result<string, Id>>
 type SaveLocation = (name: string) => Promise<Result<string, Id>>
 type SaveRoute = (name: string, locationOne: Id, locationTwo: Id) => Promise<Result<string, Id>>
 type SaveEvent = (tripId: Id, state: EventStateData, timestamp: number, order: number) => Promise<Result<string, Id>>
@@ -25,11 +25,11 @@ type SaveInnerTrip = (logger?: Logger) => (
 ) => Promise<Result<string, null>>
 
 export const saveInnerTrip: SaveInnerTrip = (parentLogger) => {
-    const logger = parentLogger?.createChild("saveInnerTrip") ?? createLogger("saveInnerTrip")
+    const logger = parentLogger?.createChild("saveInnerTrip", "TRACE") ?? createLogger("saveInnerTrip", "TRACE")
 
     return async (tripSaver, innerTrip) => {
 
-        return innerTrip.startTransaction().flatMapAsync((transaction) => {
+        return success<string, TripTransaction>(innerTrip.startTransaction()).flatMapAsync((transaction) => {
             return transaction.unsavedLocations()
                 .doOnSuccess(locations => logger.debug("LOCATIONS TO BE SAVED", locations))
                 .flatMapAsync(locations => {

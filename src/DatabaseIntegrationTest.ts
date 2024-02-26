@@ -1,11 +1,12 @@
 import * as SQLite from "expo-sqlite";
 import * as FileSystem from "expo-file-system";
-import {doOnError, doOnSuccess, failure, flatMapAsync, map, Result} from "./utilities/results";
+import {doOnError, doOnSuccess, flatMapAsync} from "./utilities/results";
 import {createTransactionCreator} from "./utilities/databaseAccess";
-import {buildDbTripRepository, insertTrip} from "./repository/tripRepository";
-import {buildInnerTrip, emptyInnerTripState} from "./repository/nextTrip";
-import {ensureTablesExist} from "./repository/tripMigration";
+import {buildDbTripRepository, insertTrip} from "./trips/persistence/tripRepository";
+import {buildInnerTrip} from "./trips/nextTrip";
+import {ensureTablesExist} from "./trips/persistence/tripMigration";
 import {createLogger} from "./utilities/logger";
+import {emptyInnerTripState} from "./trips/innerTrip/buildInnerTripState";
 
 
 export async function cleanDatabaseFile() {

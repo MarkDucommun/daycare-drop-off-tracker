@@ -1,8 +1,8 @@
 module.exports = {
-    preset: 'react-native',
+    preset: 'jest-expo',
     // setupFilesAfterEnv: ['@testing-library/react-native/cleanup-after-each'],
     setupFilesAfterEnv: ['@testing-library/jest-native/extend-expect'],
     "transformIgnorePatterns": [
-        "node_modules/(?!(@react-native|react-native|react-native-iphone-x-helper|expo-sqlite|expo-modules-core)/)",
-    ],
+        "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+    ]
 };

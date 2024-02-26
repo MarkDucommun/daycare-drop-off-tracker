@@ -74,21 +74,27 @@ export type CompleteTrip = {
     summary: () => TripSummary
 } & WithInnerTrip
 
-type TripSummary = {
-    startTime: number,
+export type TripSummary = {
+    startTime: {
+        trip: number,
+        lastLeg: number,
+        lastEvent: number
+    }
     duration: {
-        total: number,
-        atStoplight: number,
-        atTrain: number,
-        atDestinations: number,
+        stoplight: number,
+        train: number,
+        origin: number,
+        destination: number,
         moving: number
     },
     count: {
-        stoplights: number,
-        trains: number,
-        destinations: number
+        stoplight: number,
+        train: number,
+        destination: number
     }
 }
+
+type CompletedTripSummary = TripSummary & { endTime: number, totalDuration: number }
 
 export type SimpleEventState =
     'moving' |
@@ -113,14 +119,17 @@ export type RouteState = {
 
 export type LocationType = "origin" | "destination"
 
+export type RoutesForLocationPair = (locations: LocationPair | null) => Array<Route>
+
 export type InnerTrip = {
     id: () => number,
     events: () => Array<Event>
-    routes: (locations: LocationPair | null) => Array<Route>
+    routes: RoutesForLocationPair
     locations: () => Array<Location>
     lastEvent: () => Event | null
     lastLocations: () => LocationPair | null
-    startTransaction: () => Result<string, TripTransaction>
+    startTransaction: () => TripTransaction
+    summary: () => TripSummary
 }
 
 export type TripTransaction = {
@@ -184,7 +193,8 @@ export type InnerTripState = {
     id: number
     events: Array<Event>
     locations: Array<Location>
-    routes: RouteMap
+    routes: RouteMap,
+    summary: TripSummary
 }
 
 export type RouteMap = { [key: string]: { [key: string]: Array<Route> } }
@@ -210,9 +220,22 @@ export type LocationPair = {
     two: string
 }
 
-export type Event = {
+export type Event = SimpleEvent | LocationEvent | RouteEvent
+
+export type SimpleEvent = {
+    state: SimpleEventState
+} & EventCore
+
+export type LocationEvent = {
+    state: LocationState
+} & EventCore
+
+export type RouteEvent = {
+    state: RouteState
+} & EventCore
+
+export type EventCore = {
     id: number | null
-    state: EventState,
     timestamp: number,
     order: number
 }
@@ -220,4 +243,5 @@ export type Event = {
 export type TripRepository = {
     nextTrip: () => Promise<Result<string, Trip>>
     save: (trip: InnerTrip) => Promise<Result<string, null>>
+    lastTrip: () => Promise<Result<string, CompleteTrip>>
 }

@@ -1,14 +1,10 @@
-import {
-    buildEvents,
-    buildInnerTrip,
-    buildInnerTripState,
-    buildLocations,
-    buildNextTrip,
-    getNextTrip
-} from "../nextTrip";
 import {extractKey, failure, Result, success} from "../../utilities/results";
-import {EventState, NextTripWithCommit, OriginSelector, Trip, TripActionResult, TripTransaction} from "../../trip";
+import {EventState, NextTripWithCommit, OriginSelector, Trip, TripActionResult, TripTransaction} from "../../tripTypes";
 import {createLogger} from "../../utilities/logger";
+import {buildLocations} from "../innerTrip/buildLocations";
+import {buildEvents} from "../innerTrip/buildEvents";
+import {buildInnerTrip, getNextTrip} from "../nextTrip";
+import {buildInnerTripState} from "../innerTrip/buildInnerTripState";
 
 const logger = createLogger("nextTrip.spec", "TRACE")
 
@@ -113,7 +109,7 @@ describe("all", () => {
                 eventLocationsData: []
             }).map(buildInnerTrip)
                 .flatMap(innerTrip => {
-                    return innerTrip.startTransaction().flatMap(addEvents(
+                    return success<string, TripTransaction>(innerTrip.startTransaction()).flatMap(addEvents(
                             {type: 'origin', location: 'home'},
                             'moving',
                             'stoplight',
@@ -152,7 +148,7 @@ describe("all", () => {
                 eventLocationsData: []
             }).map(buildInnerTrip)
                 .flatMap(innerTrip =>
-                    innerTrip.startTransaction()
+                    success<string, TripTransaction>(innerTrip.startTransaction())
                         .flatMap(addEvents(
                                 {location: 'Home', type: 'origin'},
                                 'moving',
@@ -221,7 +217,7 @@ describe("all", () => {
 
     describe("buildLocations", () => {
         test("when no locations data passed in, returns empty list", () => {
-            buildLocations([])
+            buildLocations([], logger)
                 .map(locations => expect(locations).toEqual([]))
                 .mapError((e) => {
                     throw Error("Should not have failed: " + e)
@@ -232,8 +228,8 @@ describe("all", () => {
             buildLocations([{
                 id: 1,
                 name: "location"
-            }])
-                .map(locations => expect(locations).toContainEqual({name: "location"}))
+            }], logger)
+                .map(locations => expect(locations).toContainEqual({id: 1, name: "location"}))
                 .mapError((e) => {
                     throw Error("Should not have failed: " + e)
                 })

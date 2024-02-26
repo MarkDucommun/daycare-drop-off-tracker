@@ -1,4 +1,4 @@
-import {failure, success, traverse} from "../results";
+import {failure, success, traverse, traverseOr} from "../results";
 
 describe("traverse", () => {
     test("returns a success of empty list when list of results is empty", () => {
@@ -45,6 +45,22 @@ describe("traverse", () => {
         ])
             .mapError(message => expect(message).toEqual("failed"))
             .map(() => fail("result of traverse should not be success"))
+    })
+})
+
+describe("traverseOr", () => {
+    test("returns a success of empty list when list of results is empty", () => {
+        traverseOr([])
+            .map(result => expect(result).toEqual([]))
+            .mapError(() => { throw Error("result of empty traverse should not be failure" )})
+    })
+
+    test("filters out the failures", () => {
+        traverseOr([
+            failure<string, number>("failed")
+        ])
+            .map(result => expect(result).toEqual([]))
+            .mapError(() => { throw Error("result of traverseOr should not be failure")})
     })
 })
 

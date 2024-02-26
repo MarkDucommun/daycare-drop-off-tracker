@@ -1,6 +1,6 @@
-import {success, todo} from "../utilities/results";
-import {TripRepository} from "../trip";
-import {getNextTrip} from "./nextTrip";
+import {success, todo} from "../../utilities/results";
+import {TripRepository} from "../../tripTypes";
+import {getNextTrip} from "../nextTrip";
 import {BuildTripRepository} from "./tripRepository";
 
 export const buildFakeTripRepository: BuildTripRepository = async () => {
@@ -20,6 +20,7 @@ export const buildFakeTripRepository: BuildTripRepository = async () => {
                 eventLocationsData: []
             })
         },
-        save: async () => todo()
+        save: async () => todo(),
+        lastTrip: async () => todo()
     })
 }

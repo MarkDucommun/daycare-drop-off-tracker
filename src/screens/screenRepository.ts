@@ -1,63 +1,61 @@
-import {Screeen} from "./screenManager";
-import {flatMap, flatMapAsync, map, Result, successIfTruthy, todo} from "../utilities/results";
-import {SQLiteDatabase} from "expo-sqlite";
-import {extractCount, extractRowsDataForType} from "../utilities/rowMapper";
-import {createTransactionCreator, ExecuteSQL} from "../utilities/databaseAccess";
+import {isScreenName, ScreenData, ScreenName, ScreenNameWithVersion} from "./screenTypes";
+import {AsyncResult, doOnError, doOnSuccess, flatMap, flatMapAsync, map, successIfTruthy} from "../utilities/results";
+import {createLogger, Logger} from "../utilities/logger";
+import {RawScreenRepository} from "./persistence/rawScreenRepository";
 
-type ScreenRepository = {
-    getCurrentScreen: () => Promise<Result<string, Screeen>> // todo maybe should not fail?
-    save: (currentScreen: Screeen) => Promise<Result<string, null>>
+// TODO implement with async storage
+export type ScreenRepository = {
+    getCurrentScreenName: (defaultScreen: ScreenName) => AsyncResult<ScreenNameWithVersion>
+    saveScreen: (screen: ScreenNameWithVersion) => AsyncResult<null>
 }
 
-export type BuildScreenRepository = () => Promise<Result<string, ScreenRepository>>
+export type BuildScreenRepository = (rawScreenRepository: RawScreenRepository, parentLogger?: Logger) => AsyncResult<ScreenRepository>
 
-export const buildDbScreenRepository = (db: SQLiteDatabase): BuildScreenRepository => () => {
+export const buildApatheticScreenRepository: BuildScreenRepository = (rawRepository: RawScreenRepository, parentLogger?: Logger) => {
+    const logger = parentLogger?.createChild("screenRepo") ?? createLogger("screenRepo")
 
-    const transactionCreator = createTransactionCreator(db);
-
-    return transactionCreator(ensureScreenTableExists)
-        .then(map(_ => {
-            return {
-                getCurrentScreen: () => transactionCreator(getCurrentScreen),
-                save: (currentScreen: Screeen) => transactionCreator(saveScreen(currentScreen))
-            }
-        }))
+    return rawRepository.setup(logger).then(map(buildRepository(rawRepository, logger)))
 }
 
-const screenRowExtractor = extractRowsDataForType<ScreenData, keyof ScreenData>(
-    {key: 'name', type: 'string', nullable: false},
-    {key: 'version', type: 'number', nullable: false}
-);
+const buildRepository = (rawRepository: RawScreenRepository, logger: Logger) =>
+    () => ({
+        getCurrentScreenName: getCurrentScreenName(rawRepository, logger),
+        saveScreen: saveScreen(rawRepository, logger)
+    })
 
-const getCurrentScreen = async (executor: ExecuteSQL): Promise<Result<string, Screeen>> => {
-    executor("SELECT * FROM screen LIMIT 2;")
-        .then(flatMap(screenRowExtractor()))
-        .then(flatMap(rows => successIfTruthy(rows.length == 1).map(_ => rows[0])))
-        .then(flatMap(screen => {
+type BuildCurrentScreenName = (rawRepository: RawScreenRepository, logger: Logger) =>
+    (defaultScreen: ScreenName) => AsyncResult<ScreenNameWithVersion>
 
-            return todo()
-        }))
-    // retrieve the current screen from the database
-    // convert the result to a Screeen
-    return todo()
+type BuildSaveScreen = (rawRepository: RawScreenRepository, logger: Logger) =>
+    (screen: ScreenNameWithVersion) => AsyncResult<null>
+
+const getCurrentScreenName: BuildCurrentScreenName = (rawRepository, logger) =>
+    (defaultScreen) => {
+        logger.debug("Getting current screen name")
+        return rawRepository.getCurrentScreen(logger)
+            .then(flatMap((result: ScreenData) => isScreenName(result, logger).recover({
+                name: defaultScreen,
+                version: result.version
+            })))
+            .then(doOnSuccess(screen => logger.debug("Got screen - " + JSON.stringify(screen))))
+
+    }
+
+const saveScreen: BuildSaveScreen = (rawRepository, logger) => (screen) => {
+    logger.debug("Saving screen - " + screen.name)
+    return rawRepository.saveScreenNameTransaction(logger)
+        .then(doOnError(e => logger.error(e)))
+        .then(flatMapAsync(({getScreenNameVersions, saveScreenName}) =>
+            getScreenNameVersions()
+                .then(flatMap(ensureCorrectVersion(screen)))
+                .then(flatMapAsync(_ => saveScreenName(screen)))
+                .then(map(_ => null))));
 }
 
-const saveScreen = (currentScreen: Screeen) => async (executor: ExecuteSQL): Promise<Result<string, null>> => {
-    // retrieve the current screen from the database
-    // ensure the version has not been incremented from the current version
-    // if it has, return an error
-    // otherwise, update the current screen in the database
-    return todo()
-}
 
-type ScreenData = {
-    name: string,
-    version: number
-}
+const ensureCorrectVersion = <T extends object & { version: number }>(currentScreen: T) => (dbScreen: ScreenData) =>
+    successIfTruthy(dbScreen.version + 1 === currentScreen.version)
+        .mapError(_ => `Screen version is out of sync, aborting update - DB dbScreen 
+            is ${dbScreen.version + 1} and current dbScreen is ${currentScreen.version}`)
 
-const ensureScreenTableExists = (executor: ExecuteSQL) =>
-    executor("create table if not exists screen (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, version INTEGER NOT NULL);")
-        .then(flatMapAsync(_ => executor("SELECT count(*) FROM screen;")))
-        .then(flatMap(extractCount))
-        .then(flatMap(rowCount => successIfTruthy(rowCount == 0)))
-        .then(flatMapAsync(_ => executor("INSERT INTO screen (name, version) VALUES ('menu', 0)")))
+
