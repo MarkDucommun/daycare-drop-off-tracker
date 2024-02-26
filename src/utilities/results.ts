@@ -151,7 +151,7 @@ export const traverseOr = <L, R>(results: Array<Result<L, R>>): Result<L, Array<
         .reduce((previousValue, currentValue) => {
             return previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr]).recoverError(() => prev));
         }, success<L, R[]>([]));
-};
+}
 
 export const extractKey = <T extends object, V>(key: keyof T): (t: T) => T[keyof T] => (t: T) => t[key]
 

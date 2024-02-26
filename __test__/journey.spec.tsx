@@ -10,6 +10,10 @@ jest.mock("../src/screens/persistence/sqliteRawScreenRepository", () => {
     return jest.requireActual('../src/screens/persistence/fakeRawScreenRepository')
 })
 
+jest.mock("../src/trips/persistence/sqliteRawTripRepository", () => {
+    return jest.requireActual('../src/screens/persistence/fakeRawTripRepository')
+})
+
 describe("Can run the whole App without the database", () => {
     test("Loading - ", async () => {
 

@@ -1,16 +1,88 @@
 import {EventStateData, TripRepository} from "../../tripTypes";
 import {getCompleteTrip, getNextTrip} from "../nextTrip";
-import {doOnError, doOnSuccess, flatMap, flatMapAsync, map, Result} from "../../utilities/results";
+import {
+    AsyncResult,
+    doOnError,
+    doOnSuccess,
+    flatMap,
+    flatMapAsync,
+    flatMapErrorAsync,
+    map,
+    Result
+} from "../../utilities/results";
 import * as SQLite from "expo-sqlite";
 import {createTransactionCreator, ExecuteSQL} from "../../utilities/databaseAccess";
 import {saveInnerTrip} from "../save";
 import {extractInsertId} from "../../utilities/rowMapper";
 import {ensureTablesExist} from "./tripMigration";
-import {createLogger, Logger} from "../../utilities/logger";
+import {createLogger, createLoggerFromParent, Logger} from "../../utilities/logger";
 import {getTripData} from "../getTripData";
 import {getMostRecentCompletedTrip, getTripWithMostRecentEvent} from "../getTripId";
+import {RawTripRepository, RetrieveTripTransaction} from "./rawTripRepository";
 
 export type BuildTripRepository = () => Promise<Result<string, TripRepository>>
+export type BuildTripRepositoryToo = (rawTripRepository: RawTripRepository, parentLogger?: Logger) => AsyncResult<TripRepository>
+
+export const buildTripRepository: BuildTripRepositoryToo = (rawTripRepository, parentLogger) => {
+    const logger = createLoggerFromParent(parentLogger)("tripRepo")
+
+    const asyncRepo: AsyncResult<TripRepository> = rawTripRepository.setup()
+        .then(map(_ => {
+
+            const repo: TripRepository = {
+                nextTrip: () =>
+                    rawTripRepository.getMostRecentCompletedTrip()
+                        .then(map(({trip_id}) => trip_id))
+                        .then(flatMapAsync(reetrieve(rawTripRepository)))
+                        .then(flatMap(getNextTrip)),
+                lastTrip: () =>
+                    rawTripRepository.getMostRecentCompletedTrip()
+                        .then(map(({trip_id}) => trip_id))
+                        .then(flatMapAsync(reetrieve(rawTripRepository)))
+                        .then(flatMap(getCompleteTrip)),
+                save: trip =>
+                    rawTripRepository.getCreateTripTransaction().then(flatMapAsync(t =>
+                        saveInnerTrip(logger)({
+                            saveEvent: t.insertEvent,
+                            saveRoute: t.insertRoute,
+                            saveEventLocation: t.insertEventLocation,
+                            saveLocation: t.insertLocation,
+                            saveEventRoute: t.insertEventRoute
+                        }, trip)
+                    ))
+            }
+
+            return repo
+        }))
+
+
+    return asyncRepo
+}
+
+type ReetrieveTrip = (rawTripRepository: RawTripRepository) => (tripId: number) => AsyncResult<AllData>
+
+type RetrieveTrip = (retrieveTripTransaction: RetrieveTripTransaction) => (tripId: number) => AsyncResult<AllData>
+
+const reetrieve: ReetrieveTrip = (rawTripRepository) => (tripId) => {
+    return rawTripRepository.getRetrieveTripTransaction().then(flatMapAsync(tripTransaction => {
+        return retrieveTrip(tripTransaction)(tripId)
+    }))
+}
+
+const retrieveTrip: RetrieveTrip = (retrieveTripTransaction) => (tripId) =>
+    Promise.all([retrieveTripTransaction.getEvents(tripId), retrieveTripTransaction.getRoutes(), retrieveTripTransaction.getLocations()]).then(([a, b, c]) =>
+        a.flatMap(events =>
+            b.flatMap(routes =>
+                c.map(locations => ({
+                    eventLocationsData: events.filter(it => 'location_id' in it).map(it => it as EventLocationData),
+                    eventRoutesData: events.filter(it => 'route_id' in it).map(it => it as EventRouteData),
+                    eventsData: events.filter(it => 'timestamp' in it).map(it => it as EventData),
+                    locationsData: locations,
+                    routesData: routes,
+                    tripData: {
+                        id: tripId
+                    }
+                })))))
 
 export const buildDbTripRepository = (db: SQLite.SQLiteDatabase, logger?: Logger): BuildTripRepository => () => {
 

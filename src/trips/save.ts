@@ -28,7 +28,6 @@ export const saveInnerTrip: SaveInnerTrip = (parentLogger) => {
     const logger = parentLogger?.createChild("saveInnerTrip", "TRACE") ?? createLogger("saveInnerTrip", "TRACE")
 
     return async (tripSaver, innerTrip) => {
-
         return success<string, TripTransaction>(innerTrip.startTransaction()).flatMapAsync((transaction) => {
             return transaction.unsavedLocations()
                 .doOnSuccess(locations => logger.debug("LOCATIONS TO BE SAVED", locations))

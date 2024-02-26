@@ -9,9 +9,9 @@ type GetTripData = (executor: ExecuteSQL, logger: Logger) => (tripId: number) =>
 export const getTripData: GetTripData = (executor, logger: Logger) => (tripId) =>
     success<string, AllData>(buildEmptyAllData(tripId))
         .flatMapAsync((allData) =>
-            getLocations(executor, logger).then(map(addToAllData(allData, 'locationsData'))))
+            getLocations(executor, () => {}, logger).then(map(addToAllData(allData, 'locationsData'))))
         .then(flatMapAsync((allData) =>
-            getRoutes(executor).then(map(addToAllData(allData, 'routesData')))))
+            getRoutes(executor, () => {}, logger).then(map(addToAllData(allData, 'routesData')))))
         .then(flatMapAsync((allData) =>
             getEvents(executor)(tripId).then(map(addAllEventDataToAllData(allData)))))
 

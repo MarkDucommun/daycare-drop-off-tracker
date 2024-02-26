@@ -18,18 +18,20 @@ import {getRoutes} from "../getRoutes";
 import {getLocations} from "../getLocations";
 import {AllEventData, geEvents} from "../getEvents";
 
-type BuildRawTripRepository = (parentLogger?: Logger) => RawTripRepository
+export type BuildRawTripRepository = (parentLogger?: Logger) => RawTripRepository
 
-type RawTripRepository = {
+export type RawTripRepository = {
     setup: () => AsyncResult<null>
     insertTrip: () => AsyncResult<number> // TODO should this be on a retrieve next trip transaction?
     getTripWithMostRecentEvent: () => AsyncResult<TripIdAndState> // TODO should these be on a retrieve trip transaction?
     getMostRecentCompletedTrip: () => AsyncResult<TripIdAndState>
-    getRetrieveTripTransaction: (tripId: number) => AsyncResult<RetrieveTripTransaction>
-    getCreateTripTransaction: () => AsyncResult<CreateTripTransaction>
+    getRetrieveTripTransaction: GetRetrieveTripTransaction
+    getCreateTripTransaction: GetCreateTripTransaction
 }
 
-type RetrieveTripTransaction = {
+export type GetRetrieveTripTransaction = () => AsyncResult<RetrieveTripTransaction>
+
+export type RetrieveTripTransaction = {
     getLocations: () => AsyncResult<Array<LocationData>>
     getRoutes: () => AsyncResult<Array<RouteData>>
     getEvents: (tripId: number) => AsyncResult<Array<AllEventData>>
@@ -37,7 +39,9 @@ type RetrieveTripTransaction = {
     getEventRoutes: (eventId: number) => AsyncResult<Array<EventRouteData>> // TODO maybe this goes away?
 }
 
-type CreateTripTransaction = {
+export type GetCreateTripTransaction = () => AsyncResult<CreateTripTransaction>
+
+export type CreateTripTransaction = {
     insertLocation: (name: string) => AsyncResult<number>
     insertRoute: (name: string, locationOneId: number, locationTwoId: number) => AsyncResult<number>
     insertEvent: (tripId: number, state: string, timestamp: number, order: number) => AsyncResult<number>
@@ -47,7 +51,7 @@ type CreateTripTransaction = {
 
 export const createRawTripRepository = (db: SQLiteDatabase): BuildRawTripRepository => (parentLogger?: Logger) => {
 
-    const tripRepositoryLogger = createLoggerFromParent(parentLogger)("tripRepo");
+    const tripRepositoryLogger = createLoggerFromParent(parentLogger)("rawTripRepo");
     const transactionCreator = createTransactionCreator(db, tripRepositoryLogger);
 
     return {
@@ -56,7 +60,7 @@ export const createRawTripRepository = (db: SQLiteDatabase): BuildRawTripReposit
         getTripWithMostRecentEvent: () => transactionCreator(getTripWithMostRecentEvent, tripRepositoryLogger),
         getMostRecentCompletedTrip: () => transactionCreator(getMostRecentCompletedTrip, tripRepositoryLogger),
         getRetrieveTripTransaction: getRetrieveTripTransaction(transactionCreator, tripRepositoryLogger),
-        getCreateTripTransaction: TODO()
+        getCreateTripTransaction: getCreateTripTransaction(transactionCreator, tripRepositoryLogger)
     }
 }
 
@@ -89,7 +93,7 @@ const extractSingleRecentTrip = (logger: Logger) => (resultSet: ResultSet): Resu
         .flatMap(trips => successIfDefined(trips[0]))
         .mapError(_ => "Failed to find a matching trip")
 
-type TripIdAndState = {
+export type TripIdAndState = {
     trip_id: number
     state: string
 }
@@ -100,7 +104,7 @@ const tripIdAndStateExtractor = extractRowsDataForType<TripIdAndState, keyof Tri
 );
 
 
-const getRetrieveTripTransaction = (transactionCreator: TransactionCreator, parentLogger?: Logger) => (tripId: number): AsyncResult<RetrieveTripTransaction> => {
+const getRetrieveTripTransaction: BuildTransaction<RetrieveTripTransaction> = (transactionCreator, parentLogger) => () => {
 
     const logger = createLoggerFromParent(parentLogger)("retrieveTripTransaction")
 
@@ -114,9 +118,9 @@ const getRetrieveTripTransaction = (transactionCreator: TransactionCreator, pare
         }), logger)
 }
 
-type BuildTransaction<T > = (transactionCreator: TransactionCreator, parentLogger?: Logger) => T
+type BuildTransaction<T> = (transactionCreator: TransactionCreator, parentLogger?: Logger) => () => AsyncResult<T>
 
-const getCreateTripTransactionL: BuildTransaction<RawTripRepository['getCreateTripTransaction']> = (transactionCreator, parentLogger) => () => {
+const getCreateTripTransaction: BuildTransaction<CreateTripTransaction> = (transactionCreator, parentLogger) => () => {
 
     const logger = createLoggerFromParent(parentLogger)("createTripTransaction")
 

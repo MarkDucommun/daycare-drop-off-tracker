@@ -1,0 +1,3 @@
+describe("fake RawTripRepository", () => {
+
+})
