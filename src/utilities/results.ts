@@ -11,6 +11,7 @@ interface Failure<L, R> extends ResultInterface<L, R> {
 type ResultInterface<L, R> = {
     getOrElse: (fn: () => R) => R
     getOrNull: () => R | null
+    forceGet: (errorMessage?: string) => R
     map: <NR> (fn: (it: R) => NR) => ResultInterface<L, NR>
     mapAsync: <NR> (fn: (it: R) => Promise<NR>) => Promise<ResultInterface<L, NR>>
     doOnSuccess: (fn: (it: R) => void) => ResultInterface<L, R>
@@ -29,6 +30,10 @@ export type AsyncResult<R> = Promise<Result<string, R>>
 
 export const getOrElse = <L, R>(fn: () => R): (result: Result<L, R>) => R => (result) =>
     result.getOrElse(fn);
+
+export const getOrNull = <L, R>(result: Result<L, R>): R | null => result.getOrNull();
+
+export const forceGet = <L, R>(result: Result<L, R>, errorMessage?: string): R => result.forceGet(errorMessage);
 
 export const map = <L, R, NR>(fn: (it: R) => NR): (result: Result<L, R>) => Result<L, NR> => (result) =>
     result.map(fn);
@@ -90,6 +95,7 @@ export function success<L, R>(value: R): Result<L, R> {
     return {
         getOrElse: () => value,
         getOrNull: () => value,
+        forceGet: (_) => value,
         map: (fn) => success(fn(value)),
         mapAsync: async (fn) => fn(value).then(it => success(it)),
         doOnSuccess: (fn) => {
@@ -112,6 +118,7 @@ export function failure<L, R>(error: L): Result<L, R> {
     return {
         getOrElse: (fn) => fn(),
         getOrNull: () => null,
+        forceGet: (errorMessage) => { throw Error(errorMessage ?? "You get what you asked for") },
         map: (_) => failure(error),
         mapAsync: async (_) => failure(error),
         doOnSuccess: (_) => failure(error),
@@ -170,3 +177,5 @@ export const ensureLengthOfOneAndExtract = <T>(array: T[]): Result<string, T> =>
 export const TODO = <T>(message: string = "NOT IMPLEMENTED"): T => {
     throw new Error(message)
 }
+//
+// export const forceGet = <L, R>(it: Result

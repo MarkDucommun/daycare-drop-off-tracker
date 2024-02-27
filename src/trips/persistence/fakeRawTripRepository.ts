@@ -1,15 +1,12 @@
-import {BuildRawScreenRepository} from "../../screens/persistence/rawScreenRepository";
-import {AsyncResult, success, todo} from "../../utilities/results";
-import {ResultSet} from "expo-sqlite";
-import {Row} from "../../utilities/databaseAccess";
+import {AsyncResult, failure, success, todo} from "../../utilities/results";
 import {
     BuildRawTripRepository,
-    CreateTripTransaction, GetRetrieveTripTransaction,
+    CreateTripTransaction,
     RawTripRepository,
-    RetrieveTripTransaction, TripIdAndState
+    RetrieveTripTransaction,
+    TripIdAndState
 } from "./rawTripRepository";
 import {AllEventData} from "../getEvents";
-import {Location} from "../../tripTypes";
 
 export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
 
@@ -24,7 +21,10 @@ export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
         async getCreateTripTransaction(): AsyncResult<CreateTripTransaction> {
             const transaction: CreateTripTransaction = {
                 async insertEvent(tripId: number, state: string, timestamp: number, order: number): AsyncResult<number> {
-                    return todo()
+                    const nextId = lastId(events) + 1
+                    if (!idExists(tripData, tripId)) return failure("trip does not exist")
+                    events.push({id: nextId, trip_id: tripId, state, timestamp, order})
+                    return success(nextId)
                 },
                 async insertEventLocation(eventId: number, locationId: number): AsyncResult<number> {
                     return todo()
@@ -55,7 +55,8 @@ export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
                     return todo();
                 },
                 async getEvents(tripId: number): AsyncResult<Array<AllEventData>> {
-                    return todo()
+                    const value: AllEventData[] = events.filter(e => e.trip_id === tripId)
+                    return success(value)
                 },
                 async getLocations(): AsyncResult<Array<LocationData>> {
                     return todo()
@@ -71,8 +72,9 @@ export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
             return todo()
         },
         async insertTrip(): AsyncResult<number> {
-            tripData.sort((a, b) => a.id - b.id)
-            return todo()
+            const nextId = lastId(tripData) + 1
+            tripData.push({id: nextId})
+            return success(nextId)
         },
         async setup(): AsyncResult<null> {
             return todo()
@@ -81,3 +83,7 @@ export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
 
     return tripRepo
 }
+
+const lastId = <T extends { id: number }>(data: T[]): number => data.sort((a, b) => b.id - a.id)[0]?.id ?? 0
+
+const idExists = <T extends { id: number }>(data: T[], id: number): boolean => data.some(d => d.id === id)

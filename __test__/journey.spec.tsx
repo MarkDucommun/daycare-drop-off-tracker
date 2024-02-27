@@ -6,18 +6,17 @@ import {rawScreenRepository} from "../src/screens/persistence/sqliteRawScreenRep
 import '@testing-library/react-native/extend-expect';
 import {createLogger} from "../src/utilities/logger";
 
-jest.mock("../src/screens/persistence/sqliteRawScreenRepository", () => {
-    return jest.requireActual('../src/screens/persistence/fakeRawScreenRepository')
-})
+// jest.mock("../src/screens/persistence/sqliteRawScreenRepository", () => {
+//     return jest.requireActual('../src/screens/persistence/fakeRawScreenRepository')
+// })
 
-jest.mock("../src/trips/persistence/sqliteRawTripRepository", () => {
-    return jest.requireActual('../src/screens/persistence/fakeRawTripRepository')
-})
+// jest.mock("../src/trips/persistence/sqliteRawTripRepository", () => {
+//     return jest.requireActual('../src/screens/persistence/fakeRawTripRepository')
+// })
 
 describe("Can run the whole App without the database", () => {
     test("Loading - ", async () => {
 
-        rawScreenRepository()
         const loading = render(<Loading/>)
 
         expect(loading).toBeOnTheScreen()
