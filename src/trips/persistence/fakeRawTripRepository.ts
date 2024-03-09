@@ -8,7 +8,7 @@ import {
 } from "./rawTripRepository";
 import {AllEventData} from "../getEvents";
 
-export const rawTripRepository: BuildRawTripRepository = (parentLogger) => {
+export const rawTripRepository: BuildRawTripRepository = (parentLogger) => () => {
 
     const tripData: TripData[] = []
     const locations: LocationData[] = []

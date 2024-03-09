@@ -1,6 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import {ResultSet, SQLStatementArg} from "expo-sqlite";
-import {failure, Result, success} from "./results";
+import {failure, flatMapAsync, map, Result, safelyExecute, success, toNull} from "./results";
 import {createLoggerFromParent, Logger} from "./logger";
 
 export type Row = { [column: string]: any }
@@ -13,7 +13,11 @@ export type PushOnRollback = (fn: () => void) => void
 
 export type InTransaction<T> = (executor: ExecuteSQL, pushOnRollback: PushOnRollback, logger: Logger) => Promise<Result<string, T>>
 
-export const createTransactionCreator = (database: SQLite.SQLiteDatabase, parentLogger?: Logger): TransactionCreator => {
+export const createTransactionCreatorForFile = (databaseFile: string, parentLogger?: Logger): Result<string, TransactionCreator> =>
+    safelyExecute(() => SQLite.openDatabase(databaseFile))
+        .map(createTransactionCreator(parentLogger))
+
+export const createTransactionCreator = (parentLogger?: Logger) => (database: SQLite.SQLiteDatabase, ): TransactionCreator => {
 
     const databaseAccessLogger = createLoggerFromParent(parentLogger)("db")
 
@@ -58,4 +62,14 @@ export function createSqlExecutor(tx: SQLite.SQLTransactionAsync, logger: Logger
             return 'message' in e ? failure(e.message) : failure<string, ResultSet>("Error executing SQL");
         }
     }
+}
+
+export type SimpleMigration = (...sql: string[]) => InTransaction<null>
+
+export const simpleMigration: SimpleMigration = (...sql) => (execute, _, logger) => {
+    return sql.reduce((previousValue, currentValue, currentIndex, array) => {
+        return previousValue
+            .then(flatMapAsync(_ => execute(currentValue)))
+            .then(map(toNull))
+    }, Promise.resolve(success<string, null>(null)))
 }

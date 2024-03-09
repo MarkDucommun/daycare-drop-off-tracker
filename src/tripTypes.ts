@@ -1,4 +1,4 @@
-import {Result} from "./utilities/results";
+import {AsyncResult, Result} from "./utilities/results";
 
 export type Trip = OriginSelector
     | PendingTrip
@@ -71,7 +71,7 @@ export type AtDestinationTrip = {
 
 export type CompleteTrip = {
     type: "complete",
-    summary: () => TripSummary
+    summary: () => Result<string, CompletedTripSummary> // TODO can this be not a result?
 } & WithInnerTrip
 
 export type TripSummary = {
@@ -94,7 +94,7 @@ export type TripSummary = {
     }
 }
 
-type CompletedTripSummary = TripSummary & { endTime: number, totalDuration: number }
+export type CompletedTripSummary = TripSummary & { endTime: number, totalDuration: number }
 
 export type SimpleEventState =
     'moving' |
@@ -102,6 +102,14 @@ export type SimpleEventState =
     'train' |
     'destination' |
     'complete'
+
+export type TripOverview = {
+    state: SimpleEventState | 'origin-selection',
+    id: number,
+    startTime: number,
+    duration: number,
+    origin: string,
+}
 
 export type EventState =
     LocationState
@@ -241,7 +249,8 @@ export type EventCore = {
 }
 
 export type TripRepository = {
-    nextTrip: () => Promise<Result<string, Trip>>
+    nextTrip: () => Promise<Result<string, Trip>> // TODO THIS SHOULD RETURN INNER TRIP - THE STATEFUL REPRESENTATION IS A DETAIL OF PRESENTATION, REPOSITORY MAY BE IMPLEMENTED WITH REDUX, HTTP, SQL - SHOULDN'T MATTER
     save: (trip: InnerTrip) => Promise<Result<string, null>>
-    lastTrip: () => Promise<Result<string, CompleteTrip>>
+    lastTrip: () => Promise<Result<string, CompleteTrip>> // TODO THIS SHOULD RETURN INNER TRIP
+    allTrips: () => AsyncResult<TripOverview[]>
 }

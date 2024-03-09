@@ -1,8 +1,8 @@
-import {RootStackParams} from "./screenTypes";
+import {RootStackParams} from "../screenTypes";
 import React, {useContext} from "react";
-import {createLoggerFromParent} from "../utilities/logger";
+import {createLoggerFromParent} from "../../utilities/logger";
 import {NativeStackScreenProps} from "@react-navigation/native-stack/src/types";
-import {LoggerContext} from "../LoggerContext";
+import {LoggerContext} from "../../LoggerContext";
 import {StyleSheet, Text, View} from "react-native";
 
 export const DatabaseTestScreen: React.FC<NativeStackScreenProps<RootStackParams, 'database-tests'>> = ({navigation}) => {

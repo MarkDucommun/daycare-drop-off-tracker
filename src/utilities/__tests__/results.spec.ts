@@ -1,4 +1,4 @@
-import {failure, success, traverse, traverseOr} from "../results";
+import {failure, forceGet, safelyExecute, success, traverse, traverseOr} from "../results";
 
 describe("traverse", () => {
     test("returns a success of empty list when list of results is empty", () => {
@@ -84,5 +84,25 @@ describe("async failures", () => {
 
         expect(valueIsReceived).toBeFalsy()
         expect(caughtSomething).toBeTruthy()
+    })
+})
+
+describe("safely execute", () => {
+    it("should return a success when the function does not throw", () => {
+        safelyExecute(() => 1)
+            .map(result => expect(result).toEqual(1))
+            .mapError(() => fail("result of safelyExecute should not be failure"))
+    })
+
+    it("should return a failure when the function throws", () => {
+        safelyExecute(() => { throw "Something went wrong" })
+            .map(() => fail("result of safelyExecute should not be success"))
+            .mapError(message => expect(message).toEqual("Something went wrong"))
+    })
+
+    it("should handle an Error object being thrown", () => {
+        safelyExecute(() => { throw new Error("Something went wrong") })
+            .map(() => fail("result of safelyExecute should not be success"))
+            .mapError(message => expect(message).toEqual("Something went wrong"))
     })
 })

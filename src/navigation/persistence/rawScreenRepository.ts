@@ -12,7 +12,7 @@ export type RawScreenRepository = {
     getCurrentScreen: GetCurrentScreenNameToo
 }
 
-export type BuildRawScreenRepository = (parentLogger?: Logger) => RawScreenRepository
+export type BuildRawScreenRepository = (parentLogger?: Logger) => (transactionCreator: TransactionCreator) => RawScreenRepository
 
 type GetCurrentScreenNameToo = (parentLogger?: Logger) => Promise<Result<string, ScreenData>>
 
@@ -23,9 +23,8 @@ export type RawSaveScreenNameTransaction = {
     saveScreenName: (screen: ScreenNameWithVersion) => Promise<Result<string, ResultSet>>
 }
 
-export const createRawScreenRepository = (db: SQLiteDatabase): BuildRawScreenRepository => (parentLogger?: Logger) => {
+export const createRawScreenRepositoryToo: BuildRawScreenRepository = (parentLogger?: Logger) => (transactionCreator: TransactionCreator) => {
     const logger = createLoggerFromParent(parentLogger)("rawScreenRepo")
-    const transactionCreator = createTransactionCreator(db, logger)
 
     return {
         setup: (parentLogger?: Logger) => transactionCreator(ensureScreenTableExists, parentLogger),
@@ -33,6 +32,17 @@ export const createRawScreenRepository = (db: SQLiteDatabase): BuildRawScreenRep
         getCurrentScreen: (parentLogger?: Logger) => transactionCreator(getScreenData, parentLogger)
     }
 }
+
+// export const createRawScreenRepository = (db: SQLiteDatabase): BuildRawScreenRepository => (parentLogger?: Logger) => {
+//     const logger = createLoggerFromParent(parentLogger)("rawScreenRepo")
+//     const transactionCreator = createTransactionCreator(db, logger)
+//
+//     return {
+//         setup: (parentLogger?: Logger) => transactionCreator(ensureScreenTableExists, parentLogger),
+//         saveScreenNameTransaction: createSaveScreenName(transactionCreator),
+//         getCurrentScreen: (parentLogger?: Logger) => transactionCreator(getScreenData, parentLogger)
+//     }
+// }
 
 const screenRowExtractor = extractRowsDataForType<ScreenData, keyof ScreenData>(
     {key: 'name', type: 'string', nullable: false},

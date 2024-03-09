@@ -1,29 +1,22 @@
-import {EventStateData, TripRepository} from "../../tripTypes";
+import {Event, SimpleEventState, TripOverview, TripRepository} from "../../tripTypes";
 import {getCompleteTrip, getNextTrip} from "../nextTrip";
 import {
-    AsyncResult,
-    doOnError,
-    doOnSuccess,
+    AsyncResult, failure,
+    failureIfTruthy,
     flatMap,
     flatMapAsync,
     flatMapErrorAsync,
     map,
-    Result
+    Result, success, traverse
 } from "../../utilities/results";
-import * as SQLite from "expo-sqlite";
-import {createTransactionCreator, ExecuteSQL} from "../../utilities/databaseAccess";
 import {saveInnerTrip} from "../save";
-import {extractInsertId} from "../../utilities/rowMapper";
-import {ensureTablesExist} from "./tripMigration";
-import {createLogger, createLoggerFromParent, Logger} from "../../utilities/logger";
-import {getTripData} from "../getTripData";
-import {getMostRecentCompletedTrip, getTripWithMostRecentEvent} from "../getTripId";
+import {createLoggerFromParent, Logger} from "../../utilities/logger";
 import {RawTripRepository, RetrieveTripTransaction} from "./rawTripRepository";
 
-export type BuildTripRepository = () => Promise<Result<string, TripRepository>>
-export type BuildTripRepositoryToo = (rawTripRepository: RawTripRepository, parentLogger?: Logger) => AsyncResult<TripRepository>
+export type BuildTripRepositoryOld = () => Promise<Result<string, TripRepository>>
+export type BuildTripRepository = (rawTripRepository: RawTripRepository, parentLogger?: Logger) => AsyncResult<TripRepository>
 
-export const buildTripRepository: BuildTripRepositoryToo = (rawTripRepository, parentLogger) => {
+export const buildTripRepository: BuildTripRepository = (rawTripRepository, parentLogger) => {
     const logger = createLoggerFromParent(parentLogger)("tripRepo")
 
     const asyncRepo: AsyncResult<TripRepository> = rawTripRepository.setup()
@@ -31,8 +24,10 @@ export const buildTripRepository: BuildTripRepositoryToo = (rawTripRepository, p
 
             const repo: TripRepository = {
                 nextTrip: () =>
-                    rawTripRepository.getMostRecentCompletedTrip()
+                    rawTripRepository.getTripWithMostRecentEvent()
+                        .then(failureIfTruthy(({state}) => state == 'complete'))
                         .then(map(({trip_id}) => trip_id))
+                        .then(flatMapErrorAsync(_ => rawTripRepository.insertTrip()))
                         .then(flatMapAsync(reetrieve(rawTripRepository)))
                         .then(flatMap(getNextTrip)),
                 lastTrip: () =>
@@ -49,12 +44,52 @@ export const buildTripRepository: BuildTripRepositoryToo = (rawTripRepository, p
                             saveLocation: t.insertLocation,
                             saveEventRoute: t.insertEventRoute
                         }, trip)
-                    ))
+                    )),
+                allTrips: () => {
+                    const trips: AsyncResult<TripOverview[]> = rawTripRepository.getRawTripOverviews().then(flatMap(rawTripOverviews => {
+
+                        const trips: Result<string, TripOverview>[] = rawTripOverviews.map(rawTripOverview => {
+
+                            const getState = (state: string): Result<string, SimpleEventState | 'origin-selection'> => {
+                                switch (state) {
+                                    case 'moving':
+                                    case 'stoplight':
+                                    case 'train':
+                                    case 'destination':
+                                    case 'complete':
+                                    case 'origin-selection':
+                                        return success(state)
+                                    case 'route-selection':
+                                        return success<string, SimpleEventState | 'origin-selection'>('destination')
+                                    case 'destination-selection':
+                                        return success<string, SimpleEventState | 'origin-selection'>('destination')
+                                    default:
+                                        return failure(`No matching state for ${state}`)
+                                }
+                            }
+
+                            const tripOverview: Result<string, TripOverview> = getState(rawTripOverview.end_state).map(state => {
+                                return {
+                                    state,
+                                    id: rawTripOverview.trip_id,
+                                    startTime: rawTripOverview.start_timestamp,
+                                    duration: rawTripOverview.end_timestamp - rawTripOverview.start_timestamp,
+                                    origin: rawTripOverview.origin
+                                }
+                            })
+
+                            return tripOverview
+                        })
+
+                        return traverse(trips)
+                    }))
+
+                    return trips
+                }
             }
 
             return repo
         }))
-
 
     return asyncRepo
 }
@@ -83,70 +118,3 @@ const retrieveTrip: RetrieveTrip = (retrieveTripTransaction) => (tripId) =>
                         id: tripId
                     }
                 })))))
-
-export const buildDbTripRepository = (db: SQLite.SQLiteDatabase, logger?: Logger): BuildTripRepository => () => {
-
-    const tripRepositoryLogger = logger ? logger.createChild("tripRepo") : createLogger("tripRepo");
-    const transactionCreator = createTransactionCreator(db, tripRepositoryLogger);
-
-    return transactionCreator(ensureTablesExist)
-        .then(map(_ => {
-            const nextTripLogger = tripRepositoryLogger.createChild("nextTrip");
-            const saveLogger = tripRepositoryLogger.createChild("save");
-            const saveInnerTripWithLogger = saveInnerTrip(saveLogger);
-            return ({
-                nextTrip: () => transactionCreator((executor, pushOnRollback) =>
-                    getTripWithMostRecentEvent(executor, nextTripLogger, insertTrip(executor, nextTripLogger))
-                        .then(flatMapAsync(getTripData(executor, nextTripLogger)))
-                        .then(flatMap(getNextTrip)), nextTripLogger),
-                save: (innerTrip) =>
-                    transactionCreator((executor, pushOnRollback) =>
-                        saveInnerTripWithLogger({
-                            saveEvent: insertEvent(executor),
-                            saveLocation: insertLocation(executor),
-                            saveRoute: insertRoute(executor, saveLogger),
-                            saveEventLocation: insertEventLocation(executor),
-                            saveEventRoute: insertEventRoute(executor)
-                        }, innerTrip), saveLogger),
-                lastTrip: () => transactionCreator((executor, pushOnRollback) =>
-                    getMostRecentCompletedTrip(executor, nextTripLogger)
-                        .then(flatMapAsync(getTripData(executor, nextTripLogger)))
-                        .then(flatMap(getCompleteTrip)), nextTripLogger)
-            });
-        }))
-
-}
-
-const insertEventRoute = (execute: ExecuteSQL) => (eventId: number, routeId: number) =>
-    execute(
-        "insert into event_routes (event_id, route_id) values (?, ?)",
-        [eventId, routeId]
-    ).then(flatMap(extractInsertId))
-
-const insertEventLocation = (execute: ExecuteSQL) => (eventId: number, locationId: number) =>
-    execute(
-        "insert into event_locations (event_id, location_id) values (?, ?)",
-        [eventId, locationId]
-    ).then(flatMap(extractInsertId))
-
-const insertEvent = (execute: ExecuteSQL) => (tripId: number, state: EventStateData, timestamp: number, order: number) =>
-    execute(
-        "insert into events (trip_id, state, timestamp, \"order\") values (?, ?, ?, ?)",
-        [tripId, state, timestamp, order]
-    ).then(flatMap(extractInsertId))
-
-const insertRoute = (execute: ExecuteSQL, logger: Logger) => (name: string, locationOneId: number, locationTwoId: number) => execute(
-    "insert into routes (name, location_one_id, location_two_id) values (?, ?, ?)",
-    [name, locationOneId, locationTwoId]
-).then(flatMap(extractInsertId))
-    .then(doOnSuccess(id => logger.debug("INSERTED ROUTE: " + id)))
-
-const insertLocation = (execute: ExecuteSQL) => (name: string) =>
-    execute("insert into locations (name) values (?)", [name]).then(flatMap(extractInsertId))
-
-export const insertTrip = (execute: ExecuteSQL, logger: Logger) => () =>
-    execute("INSERT INTO trips DEFAULT VALUES;", [])
-        .then(doOnError(console.error))
-        .then(flatMap(extractInsertId))
-        .then(doOnSuccess(id => logger.debug("INSERTED TRIP " + id)))
-

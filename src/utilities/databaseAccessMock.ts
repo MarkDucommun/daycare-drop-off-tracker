@@ -1,13 +1,18 @@
-import * as SQLite from "expo-sqlite";
-import {ResultSet, SQLStatementArg} from "expo-sqlite";
+import {ResultSet} from "expo-sqlite";
 import {createLoggerFromParent, Logger} from "./logger";
-import {failure, Result, success} from "./results";
+import {failure, Result, safelyExecute, success} from "./results";
 import {ExecuteSQL, PushOnRollback, Row, TransactionCreator} from "./databaseAccess";
-import {Database as BetterDatabase} from "better-sqlite3";
+import Database, { Database as DatabaseType} from "better-sqlite3";
 
-export const createTransactionCreator = (database: BetterDatabase, parentLogger?: Logger): TransactionCreator => {
+export const createTransactionCreatorForFile = (databaseFile: string = ":memory:", parentLogger?: Logger): Result<string, TransactionCreator> =>
+    safelyExecute(() => Database(databaseFile)).map(createTransactionCreator(parentLogger))
+
+
+export const createTransactionCreator = (parentLogger?: Logger) => (database: DatabaseType): TransactionCreator => {
 
     const databaseAccessLogger = createLoggerFromParent(parentLogger)("db")
+
+    databaseAccessLogger.info("Welcome to MOCK DATABASE ACCESS!")
 
     return <T>(fn: (executor: ExecuteSQL, pushOnRollback: PushOnRollback, logger: Logger) => Promise<Result<string, T>>, parentTransactionLogger: Logger = databaseAccessLogger) => {
 
@@ -21,7 +26,7 @@ export const createTransactionCreator = (database: BetterDatabase, parentLogger?
 
                     const resultSet: ResultSet = {insertId: 0, rows: [], rowsAffected: 0}
 
-                    const executor: ExecuteSQL = (sql) => {
+                    const executor: ExecuteSQL = (sql, params) => {
                         const stmt = database.prepare(sql)
 
                         const isRunError = (e: any) => {
@@ -30,7 +35,7 @@ export const createTransactionCreator = (database: BetterDatabase, parentLogger?
                         }
 
                         try {
-                            const results1 = stmt.all()
+                            const results1 = params ? stmt.all(...params) : stmt.all()
 
                             const rows = results1
                                 .filter((row: any): row is Row => typeof row === 'object')
@@ -42,7 +47,7 @@ export const createTransactionCreator = (database: BetterDatabase, parentLogger?
                         }
 
                         try {
-                            const results1 = stmt.run()
+                            const results1 = params ? stmt.run(...params) : stmt.run()
                             const insertId = results1.lastInsertRowid;
                             if (typeof insertId === 'bigint') return Promise.resolve(failure("Insert ID is a bigint, not supported"))
 
@@ -78,19 +83,4 @@ export const createTransactionCreator = (database: BetterDatabase, parentLogger?
             else resolve(failure("something went wrong"))
         });
     };
-}
-
-export function createSqlExecutor(tx: SQLite.SQLTransactionAsync, logger: Logger): ExecuteSQL {
-    return async (sql, args) => {
-        try {
-            logger.trace("Executing SQL: " + sql)
-            logger.trace("With Args:" + args)
-            const resultSet = await tx.executeSqlAsync(sql, args as SQLStatementArg[]);
-            logger.trace("Results:")
-            logger.trace(resultSet)
-            return success(resultSet)
-        } catch (e: any) {
-            return 'message' in e ? failure(e.message) : failure<string, ResultSet>("Error executing SQL");
-        }
-    }
 }

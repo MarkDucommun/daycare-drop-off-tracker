@@ -1,15 +1,20 @@
 import {Event, EventState, InnerTripState} from "../../tripTypes";
-import {Result, success} from "../../utilities/results";
+import {Result, success, toNull} from "../../utilities/results";
 import {lastTwoLocations} from "./lastTwoLocations";
+import {buildTripSummary} from "../innerTrip/buildTripSummary";
+import * as events from "events";
 
 type AddEvent = (nextState: InnerTripState, state: EventState) => Result<string, null>
 export const addEvent: AddEvent = (nextState, state) => {
-    nextState.events.unshift({
+    const lastEvent = nextState.events[0];
+    const lastSummaryEvent = nextState.events.find( it => typeof it.state == 'string' || !('route' in it.state) && it.state.type == 'origin')
+    const nextEvent: Event = {
         id: null,
         state,
         timestamp: Date.now(),
-        order: (nextState.events[0]?.order || 0) + 1,
-    } as Event)
+        order: (lastEvent?.order || 0) + 1,
+    };
+    nextState.events.unshift(nextEvent)
 
     if (typeof state == "object") {
         if ('route' in state) {
@@ -25,5 +30,12 @@ export const addEvent: AddEvent = (nextState, state) => {
             nextState.locations.push({name: state.location, id: null})
         }
     }
-    return success(null)
+
+
+    console.log(lastSummaryEvent)
+
+    return buildTripSummary([nextEvent], lastSummaryEvent, nextState.summary)
+        .doOnSuccess(summary => nextState.summary = summary)
+        .doOnError(console.error)
+        .map(toNull)
 }

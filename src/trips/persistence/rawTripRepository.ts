@@ -6,19 +6,20 @@ import {
     Result,
     success,
     successIfDefined,
-    todo,
-    TODO
+    todo
 } from "../../utilities/results";
-import {createTransactionCreator, ExecuteSQL, InTransaction, TransactionCreator} from "../../utilities/databaseAccess";
+import {ExecuteSQL, InTransaction, TransactionCreator} from "../../utilities/databaseAccess";
 import {ensureTablesExist} from "./tripMigration";
 import {createLoggerFromParent, Logger} from "../../utilities/logger";
 import {extractInsertId, extractRowsDataForType} from "../../utilities/rowMapper";
-import {ResultSet, SQLiteDatabase} from "expo-sqlite";
+import {ResultSet} from "expo-sqlite";
 import {getRoutes} from "../getRoutes";
 import {getLocations} from "../getLocations";
 import {AllEventData, geEvents} from "../getEvents";
+import {selectTripOverviewSql} from "./sql/selectTripOverview";
+import {extractorQueryAll} from "../../utilities/extractorQuery";
 
-export type BuildRawTripRepository = (parentLogger?: Logger) => RawTripRepository
+export type BuildRawTripRepository = (parentLogger?: Logger) => (transactionCreator: TransactionCreator) => RawTripRepository
 
 export type RawTripRepository = {
     setup: () => AsyncResult<null>
@@ -26,7 +27,8 @@ export type RawTripRepository = {
     getTripWithMostRecentEvent: () => AsyncResult<TripIdAndState> // TODO should these be on a retrieve trip transaction?
     getMostRecentCompletedTrip: () => AsyncResult<TripIdAndState>
     getRetrieveTripTransaction: GetRetrieveTripTransaction
-    getCreateTripTransaction: GetCreateTripTransaction
+    getCreateTripTransaction: GetCreateTripTransaction,
+    getRawTripOverviews: () => AsyncResult<RawTripOverview[]>,
 }
 
 export type GetRetrieveTripTransaction = () => AsyncResult<RetrieveTripTransaction>
@@ -49,10 +51,17 @@ export type CreateTripTransaction = {
     insertEventRoute: (eventId: number, routeId: number) => AsyncResult<number>
 }
 
-export const createRawTripRepository = (db: SQLiteDatabase): BuildRawTripRepository => (parentLogger?: Logger) => {
+type RawTripOverview = {
+    trip_id: number,
+    origin: string,
+    end_state: string
+    start_timestamp: number,
+    end_timestamp: number
+}
 
-    const tripRepositoryLogger = createLoggerFromParent(parentLogger)("rawTripRepo");
-    const transactionCreator = createTransactionCreator(db, tripRepositoryLogger);
+export const createRawTripRepository: BuildRawTripRepository = (parentLogger) => (transactionCreator) => {
+
+    const tripRepositoryLogger = createLoggerFromParent(parentLogger)("rawTripRepo")
 
     return {
         setup: setup(transactionCreator, tripRepositoryLogger),
@@ -60,7 +69,38 @@ export const createRawTripRepository = (db: SQLiteDatabase): BuildRawTripReposit
         getTripWithMostRecentEvent: () => transactionCreator(getTripWithMostRecentEvent, tripRepositoryLogger),
         getMostRecentCompletedTrip: () => transactionCreator(getMostRecentCompletedTrip, tripRepositoryLogger),
         getRetrieveTripTransaction: getRetrieveTripTransaction(transactionCreator, tripRepositoryLogger),
-        getCreateTripTransaction: getCreateTripTransaction(transactionCreator, tripRepositoryLogger)
+        getCreateTripTransaction: getCreateTripTransaction(transactionCreator, tripRepositoryLogger),
+        getRawTripOverviews: async () => {
+            const tripOverviewExtractor = extractorQueryAll<RawTripOverview, keyof RawTripOverview>(
+                selectTripOverviewSql, [],
+                {
+                    key: 'end_state',
+                    type: 'string',
+                    nullable: false
+                }, {
+                    key: 'trip_id',
+                    type: 'number',
+                    nullable: false
+                },
+                {
+                    key: 'start_timestamp',
+                    type: 'number',
+                    nullable: false
+                },
+                {
+                    key: 'end_timestamp',
+                    type: 'number',
+                    nullable: false
+                },
+                {
+                    key: 'origin',
+                    type: 'string',
+                    nullable: false
+                }
+            )
+
+            return transactionCreator<RawTripOverview[]>(tripOverviewExtractor, tripRepositoryLogger)
+        },
     }
 }
 
@@ -102,7 +142,6 @@ const tripIdAndStateExtractor = extractRowsDataForType<TripIdAndState, keyof Tri
     {key: 'trip_id', type: 'number', nullable: false},
     {key: 'state', type: 'string', nullable: false}
 );
-
 
 const getRetrieveTripTransaction: BuildTransaction<RetrieveTripTransaction> = (transactionCreator, parentLogger) => () => {
 

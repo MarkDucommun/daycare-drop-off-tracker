@@ -26,11 +26,10 @@ an analysis tool - though it may someday evolve into the latter.
 3. Add a way to edit route names
 4. Add a way to examine what routes show up for what location combinations
 5. Add a way to delete routes? Maybe this just makes it so that the route isn't an option in the future?
+6. Sweep up trips that don't have any events at some regular cadence?
 
 ```mermaid
 stateDiagram-v2
-    state OriginSelector
-        
     OriginSelector --> Pending: origin-selection
     Pending --> Moving: moving
     Moving --> Stoplight: stoplight

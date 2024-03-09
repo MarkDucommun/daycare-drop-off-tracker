@@ -11,6 +11,7 @@ import {
     TripTransaction
 } from "../../tripTypes";
 import {success} from "../../utilities/results";
+import {buildCompleteTripSummary} from "../innerTrip/buildTripSummary";
 
 type BuildNextTrip = (innerTrip: InnerTrip) => Trip
 export const buildNextTrip: BuildNextTrip = (innerTrip): Trip => {
@@ -132,7 +133,5 @@ const buildAtDestinationTrip = (innerTrip: InnerTrip): AtDestinationTrip => ({
 export const buildCompleteTrip = (innerTrip: InnerTrip): CompleteTrip => ({
     type: "complete",
     innerTrip: () => innerTrip,
-    summary: () => {
-        throw Error("BANG")
-    }
+    summary: () => buildCompleteTripSummary(innerTrip.events())
 })

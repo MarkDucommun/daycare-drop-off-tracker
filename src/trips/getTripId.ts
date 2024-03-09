@@ -14,7 +14,7 @@ import {
 import {ResultSet} from "expo-sqlite";
 import {SaveTrip} from "./save";
 
-type TripIdAndState = {
+export type TripIdAndState = {
     trip_id: number
     state: string
 }

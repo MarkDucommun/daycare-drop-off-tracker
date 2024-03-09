@@ -38,10 +38,7 @@ export const buildInnerTrip: BuildInnerTrip = (innerTripState): InnerTrip => {
         locations: () => currentState.locations,
         lastEvent: () => currentState.events.length == 0 ? null : currentState.events[0],
         lastLocations: () => lastTwoLocations(currentState.events).getOrNull(),
-        summary: (): TripSummary => {
-
-            return ({}) as unknown as TripSummary
-        },
+        summary: (): TripSummary => innerTripState.summary,
         startTransaction: () => {
             return openTransaction ?? startTripTransaction(
                 currentState,

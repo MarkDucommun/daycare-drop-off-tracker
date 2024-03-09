@@ -1,5 +1,5 @@
-import {Event, SimpleEventState, TripSummary} from "../../tripTypes";
-import {Result, success, successIfTruthy, traverseOr} from "../../utilities/results";
+import {CompletedTripSummary, Event, SimpleEvent, SimpleEventState, TripSummary} from "../../tripTypes";
+import {failure, Result, success, successIfDefined, successIfTruthy, todo, traverseOr} from "../../utilities/results";
 
 type BuildTripSummary = (events: Array<Event>) => TripSummary
 
@@ -57,7 +57,12 @@ const transitionTests: TransitionTest =
 
 const processTransition = (previous: Event, current: Event): Result<string, EventSummary> => {
     return transitionTests(previous, current)
-        .map(transition => ({transition, duration: current.timestamp - previous.timestamp, timestamp: current.timestamp}))
+        .map(transition => ({
+            transition,
+            duration: current.timestamp - previous.timestamp,
+            timestamp: current.timestamp
+        }))
+        .mapError(_ => `Invalid transition from ${previous.state} to ${current.state}`)
 }
 
 const eventsToStateTransitions = (events: Array<Event>): Result<string, Array<EventSummary>> => {
@@ -84,10 +89,46 @@ const increment = <T extends { [key: string]: number }, K extends keyof T>(obj: 
     return {...obj, [key]: value + amount}
 }
 
-export const buildTripSummary = (events: Array<Event>): Result<string, TripSummary> => {
+export const buildTripSummary = (sortedEvents: Array<Event>, lastEventAdded?: Event, summary: TripSummary = emptyTripSummary()): Result<string, TripSummary> => {
+    console.log(sortedEvents)
+    if (sortedEvents.length == 0) return success(summary)
+    const [firstEvent, ...rest] = sortedEvents
+    if (lastEventAdded == null && typeof firstEvent.state == 'object' && 'location' in firstEvent.state && firstEvent.state.type == 'origin')
+        return buildTripSummary(rest, firstEvent, {
+            ...summary,
+            startTime: {
+                trip: firstEvent.timestamp,
+                lastLeg: firstEvent.timestamp,
+                lastEvent: firstEvent.timestamp
+            }
+        })
+    if (lastEventAdded == null) return failure(`First event must be an origin, but was ${firstEvent.state}`)
+    if (typeof firstEvent.state == 'object') return buildTripSummary(rest, lastEventAdded, summary)
+    return processTransition(lastEventAdded, firstEvent)
+        .doOnSuccess(ev => console.log(ev))
+        .flatMap(({transition, duration, timestamp}) => {
+            const [first, second] = transition
+
+            const a = {
+                ...summary,
+                startTime: {
+                    ...summary.startTime,
+                    trip: first == "origin" ? timestamp : summary.startTime.trip,
+                    lastLeg: first == "origin" || first == "destination" ? timestamp : summary.startTime.lastLeg,
+                    lastEvent: timestamp
+                },
+                duration: increment(summary.duration, first, duration),
+                count: second != "moving" && second != "complete" ? increment(summary.count, second, 1) : summary.count
+            }
+
+            return buildTripSummary(rest, firstEvent, a)
+        })
+}
+
+export const buildTripSummaryOld = (events: Array<Event>): Result<string, TripSummary> => {
     return eventsToStateTransitions([...events].sort((a, b) => a.order - b.order))
-        .map(stateTransitions => {
-            return stateTransitions.reduce((summary, {transition, duration, timestamp}) => {
+        .map(stateTransitions =>
+            stateTransitions.reduce((summary, {transition, duration, timestamp}) => {
                 const [first, second] = transition
 
                 return {
@@ -101,26 +142,43 @@ export const buildTripSummary = (events: Array<Event>): Result<string, TripSumma
                     duration: increment(summary.duration, first, duration),
                     count: second != "moving" && second != "complete" ? increment(summary.count, second, 1) : summary.count
                 }
-            }, emptyTripSummary())
-        })
+            }, emptyTripSummary()))
 }
 
+
+export const buildCompleteTripSummary = (events: Array<Event>): Result<string, CompletedTripSummary> =>
+    buildTripSummary(events)
+        .flatMap(summary =>
+            successIfDefined(events.filter((event): event is SimpleEvent => event.state == "complete")[0])
+                .map(completeEvent => upgradeTripSummaryToComplete(summary, completeEvent.timestamp)))
+
+export const upgradeTripSummaryToComplete = (summary: TripSummary, endTime: number): CompletedTripSummary => {
+    const totalDuration = endTime - summary.startTime.trip
+    return {...summary, endTime, totalDuration}
+}
+
+export const emptyStartTimes = (): TripSummary['startTime'] => ({
+    trip: 0,
+    lastLeg: 0,
+    lastEvent: 0
+})
+
+export const emptyDuration = (): TripSummary['duration'] => ({
+    stoplight: 0,
+    train: 0,
+    origin: 0,
+    destination: 0,
+    moving: 0
+})
+
+export const emptyCount = (): TripSummary['count'] => ({
+    stoplight: 0,
+    train: 0,
+    destination: 0
+})
+
 export const emptyTripSummary = (): TripSummary => ({
-    startTime: {
-        trip: 0,
-        lastLeg: 0,
-        lastEvent: 0
-    },
-    duration: {
-        stoplight: 0,
-        train: 0,
-        origin: 0,
-        destination: 0,
-        moving: 0
-    },
-    count: {
-        stoplight: 0,
-        train: 0,
-        destination: 0
-    }
+    startTime: emptyStartTimes(),
+    duration: emptyDuration(),
+    count: emptyCount()
 })

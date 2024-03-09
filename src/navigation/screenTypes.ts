@@ -7,15 +7,15 @@ export type MenuScreen = {
 } & CoreScreen
 
 export type TripRunnerScreen = {
-    type: "tripRunner"
+    type: "trip-runner"
 } & CoreScreen
 
 export type DatabaseTestScreen = {
-    type: "databaseTest"
+    type: "database-test"
 } & CoreScreen
 
 export type TripsSummaryScreen = {
-    type: "tripsSummary"
+    type: "trips-summary"
 } & CoreScreen
 
 export type CoreScreen = {
@@ -23,26 +23,37 @@ export type CoreScreen = {
     render: (nextScreen: (screen: Screeen) => void) => ReactElement
 }
 
-export type Screeen = MenuScreen | TripRunnerScreen | DatabaseTestScreen | TripsSummaryScreen
+export type Screeen = MenuScreen |
+    TripRunnerScreen |
+    DatabaseTestScreen |
+    TripsSummaryScreen
 
 export type RootStackParams = {
-    '1': undefined
-    '2': undefined
-    '3': undefined
     'menu': undefined
     'database-tests': undefined
+    'acceleration-tests': undefined
+    'acceleration-results': undefined
+    'acceleration-lists': undefined
     'trip-runner': undefined
+    'trip-summary': undefined
+    'trip-list': undefined
+    'carousel': undefined
+    'file-explorer': undefined
 }
 
 export type ScreenName = keyof RootStackParams
 
 export const screenNames: Set<string> = new Set([
-    '1',
-    '2',
-    '3',
     'menu',
     'database-tests',
     'trip-runner',
+    'trip-summary',
+    'trip-list',
+    'acceleration-tests',
+    'acceleration-results',
+    'acceleration-lists',
+    'carousel',
+    'file-explorer'
 ])
 
 export const isScreenName = ({name, version}: ScreenData, logger?: Logger): Result<string, ScreenNameWithVersion> =>

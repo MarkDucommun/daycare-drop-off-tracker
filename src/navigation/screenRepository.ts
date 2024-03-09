@@ -11,7 +11,7 @@ export type ScreenRepository = {
 
 export type BuildScreenRepository = (rawScreenRepository: RawScreenRepository, parentLogger?: Logger) => AsyncResult<ScreenRepository>
 
-export const buildApatheticScreenRepository: BuildScreenRepository = (rawRepository: RawScreenRepository, parentLogger?: Logger) => {
+export const buildScreenRepository: BuildScreenRepository = (rawRepository: RawScreenRepository, parentLogger?: Logger) => {
     const logger = parentLogger?.createChild("screenRepo") ?? createLogger("screenRepo")
 
     return rawRepository.setup(logger).then(map(buildRepository(rawRepository, logger)))
@@ -31,7 +31,7 @@ type BuildSaveScreen = (rawRepository: RawScreenRepository, logger: Logger) =>
 
 const getCurrentScreenName: BuildCurrentScreenName = (rawRepository, logger) =>
     (defaultScreen) => {
-        logger.debug("Getting current screen name")
+        logger.info("Getting current screen name")
         return rawRepository.getCurrentScreen(logger)
             .then(flatMap((result: ScreenData) => isScreenName(result, logger).recover({
                 name: defaultScreen,

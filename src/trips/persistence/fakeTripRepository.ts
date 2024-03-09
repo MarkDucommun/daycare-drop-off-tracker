@@ -1,7 +1,7 @@
 import {success, todo} from "../../utilities/results";
 import {TripRepository} from "../../tripTypes";
 import {getNextTrip} from "../nextTrip";
-import {BuildTripRepository} from "./tripRepository";
+import {BuildTripRepositoryOld} from "./tripRepository";
 
 export const fakeTripRepository: TripRepository = {
     nextTrip: async () => {
@@ -24,6 +24,6 @@ export const fakeTripRepository: TripRepository = {
 };
 
 
-export const buildFakeTripRepository: BuildTripRepository = async () => {
+export const buildFakeTripRepository: BuildTripRepositoryOld = async () => {
     return success<string, TripRepository>(fakeTripRepository)
 }

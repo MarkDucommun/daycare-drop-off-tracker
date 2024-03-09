@@ -1,19 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="daycare-dropoff-v2.db" uuid="3303c4ee-e370-47c1-a4b6-a54b70a6a569">
+    <data-source source="LOCAL" name="tripManager.copy.db" uuid="5f4e5e05-f451-4eba-ae4e-76563e073166">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/../../../../Developer/CoreSimulator/Devices/D2794485-769F-4B07-BC01-83B3348FD741/data/Containers/Data/Application/DB95877C-01ED-43B8-A437-F2AB9FC37AB5/Documents/ExponentExperienceData/@anonymous/daycare-dropoff-tracker-e247fcb6-b01c-42e8-b7e9-0fb5d606232b/SQLite/daycare-dropoff-v2.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$USER_HOME$/Downloads/tripManager.db.copy</jdbc-url>
+      <jdbc-additional-properties>
+        <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
+      </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="db-integration-test.db" uuid="bfa696bc-2273-40b7-965d-176b8e576eec">
+    <data-source source="LOCAL" name="tripManager.db " uuid="d6f43a6a-c7c0-4add-8d6d-666e43336c94">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/../../../../Developer/CoreSimulator/Devices/D2794485-769F-4B07-BC01-83B3348FD741/data/Containers/Data/Application/DB95877C-01ED-43B8-A437-F2AB9FC37AB5/Documents/ExponentExperienceData/@anonymous/daycare-dropoff-tracker-e247fcb6-b01c-42e8-b7e9-0fb5d606232b/SQLite/db-integration-test.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/src/trips/persistence/__tests__/tripManager.db</jdbc-url>
+      <jdbc-additional-properties>
+        <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
+      </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
+      <libraries>
+        <library>
+          <url>file://$APPLICATION_CONFIG_DIR$/jdbc-drivers/Xerial SQLiteJDBC/3.45.1/org/xerial/sqlite-jdbc/3.45.1.0/sqlite-jdbc-3.45.1.0.jar</url>
+        </library>
+        <library>
+          <url>file://$APPLICATION_CONFIG_DIR$/jdbc-drivers/Xerial SQLiteJDBC/3.45.1/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar</url>
+        </library>
+      </libraries>
     </data-source>
   </component>
 </project>

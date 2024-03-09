@@ -1,3 +1,6 @@
+import {Logger} from "./logger";
+import React from "react";
+
 export type Result<L, R> = Success<L, R> | Failure<L, R>
 
 interface Success<L, R> extends ResultInterface<L, R> {
@@ -9,6 +12,8 @@ interface Failure<L, R> extends ResultInterface<L, R> {
 }
 
 type ResultInterface<L, R> = {
+    isSuccess: () => boolean
+    isFailure: () => boolean
     getOrElse: (fn: () => R) => R
     getOrNull: () => R | null
     forceGet: (errorMessage?: string) => R
@@ -43,6 +48,9 @@ export const mapAsync = <L, R, NR>(fn: (it: R) => Promise<NR>): (result: Result<
 
 export const doOnSuccess = <L, R>(fn: (it: R) => void): (result: Result<L, R>) => Result<L, R> => (result) =>
     result.doOnSuccess(fn)
+
+export const onSuccessSetState = <L, R>(setStateDispatch: React.Dispatch<React.SetStateAction<R>>): (result: Result<L, R>) => Result<L, R> => (result) =>
+    result.doOnSuccess(setStateDispatch)
 
 export const flatMap = <L, R, NR>(fn: (it: R) => ResultInterface<L, NR>): (result: Result<L, R>) => Result<L, NR> => (result) =>
     result.flatMap(fn)
@@ -85,6 +93,12 @@ export const successIfTruthyRaw = <L, R>(value: R | null | undefined | boolean, 
 export const successIfTruthy = <R>(value: R | null | undefined | boolean): Result<string, true | NonNullable<R>> =>
     successIfTruthyRaw(value, () => "Value was falsy");
 
+export const failureIfTruthyRaw = <L, R>(value: Result<L, R>, expression: (it: R) => boolean, ifTruthy: () => L): Result<L, R> =>
+    value.flatMap(it => expression(it) ? failure(ifTruthy()) : success(it))
+
+export const failureIfTruthy =  <R>(expression: (it: R) => boolean, reason?: string) => (value: Result<string, R>): Result<string, R> =>
+    failureIfTruthyRaw(value, expression, () => reason ?? "Value was truthy")
+
 export const successIfFalsyRaw = <L, R>(value: R | null | undefined | boolean, ifTruthy: () => L): Result<L, false> =>
     value ? failure(ifTruthy()) : success(false);
 
@@ -93,6 +107,8 @@ export const successIfFalsy = <R>(value: R | null | undefined | boolean): Result
 
 export function success<L, R>(value: R): Result<L, R> {
     return {
+        isSuccess: () => true,
+        isFailure: () => false,
         getOrElse: () => value,
         getOrNull: () => value,
         forceGet: (_) => value,
@@ -116,9 +132,11 @@ export function success<L, R>(value: R): Result<L, R> {
 
 export function failure<L, R>(error: L): Result<L, R> {
     return {
+        isSuccess: () => false,
+        isFailure: () => true,
         getOrElse: (fn) => fn(),
         getOrNull: () => null,
-        forceGet: (errorMessage) => { throw Error(errorMessage ?? "You get what you asked for") },
+        forceGet: (errorMessage) => { throw Error(`${errorMessage ?? "You get what you asked for"} - ${error}`) },
         map: (_) => failure(error),
         mapAsync: async (_) => failure(error),
         doOnSuccess: (_) => failure(error),
@@ -148,6 +166,17 @@ export const traverse = <L, R>(results: Array<Result<L, R>>): Result<L, Array<R>
             previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr])));
 };
 
+export const traverse2 = <L, R1, R2>(pair: [Result<L, R1>, Result<L, R2>]): Result<L, [R1, R2]> =>
+    pair[0].flatMap(it1 => pair[1].map(it2 => [it1, it2] as [R1, R2]))
+export const traverse3 = <L, T1, T2, T3>(tuple: [Result<L, T1>, Result<L, T2>, Result<L, T3>]): Result<L, [T1, T2, T3]> =>
+    tuple[0].flatMap(it1 => traverse2([tuple[1], tuple[2]]).map(it => [it1, ...it] as [T1, T2, T3]))
+
+export const traverse4 = <L, T1, T2, T3, T4>(tuple: [Result<L, T1>, Result<L, T2>, Result<L, T3>, Result<L, T4>]): Result<L, [T1, T2, T3, T4]> =>
+    tuple[0].flatMap(it1 => traverse3([tuple[1], tuple[2], tuple[3]]).map(it => [it1, ...it] as [T1, T2, T3, T4]))
+
+export const traverse5 = <L, T1, T2, T3, T4, T5>(tuple: [Result<L, T1>, Result<L, T2>, Result<L, T3>, Result<L, T4>, Result<L, T5>]): Result<L, [T1, T2, T3, T4, T5]> =>
+    tuple[0].flatMap(it1 => traverse4([tuple[1], tuple[2], tuple[3], tuple[4]]).map(it => [it1, ...it] as [T1, T2, T3, T4, T5]))
+
 export const traverseOr = <L, R>(results: Array<Result<L, R>>): Result<L, Array<R>> => {
     const resultMap = results
         .map(result => result.map(inner => [inner]));
@@ -155,9 +184,10 @@ export const traverseOr = <L, R>(results: Array<Result<L, R>>): Result<L, Array<
     if (resultMap.length == 0) return success<L, Array<R>>([])
 
     return resultMap
-        .reduce((previousValue, currentValue) => {
-            return previousValue.flatMap(prev => currentValue.map(curr => [...prev, ...curr]).recoverError(() => prev));
-        }, success<L, R[]>([]));
+        .reduce((previousValue, currentValue) =>
+            previousValue.flatMap(prev => currentValue
+                .map(curr => [...prev, ...curr])
+                .recoverError(() => prev)), success<L, R[]>([]));
 }
 
 export const extractKey = <T extends object, V>(key: keyof T): (t: T) => T[keyof T] => (t: T) => t[key]
@@ -177,5 +207,22 @@ export const ensureLengthOfOneAndExtract = <T>(array: T[]): Result<string, T> =>
 export const TODO = <T>(message: string = "NOT IMPLEMENTED"): T => {
     throw new Error(message)
 }
-//
-// export const forceGet = <L, R>(it: Result
+
+export const convertPromise = <T>(promise: Promise<T>): AsyncResult<T> =>
+    promise
+        .then(it => success<string, T>(it))
+        .catch(e => 'message' in e ? failure<string, T>(e.message) : failure<string, T>("Error executing SQL"))
+
+export const safelyExecute = <T>(fn: () => T): Result<string, T> => {
+    try {
+        return success(fn())
+    } catch (e: any) {
+        if (typeof e === 'string') return failure(e)
+        if ('message' in e) return failure(e.message)
+        return failure("??")
+    }
+}
+
+export const loggerCurry = <T, U>(fn: (t: T, logger?: Logger) => U) => (logger: Logger) => (t: T) => fn(t, logger)
+
+export const toNull = () => null

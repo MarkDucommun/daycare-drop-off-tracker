@@ -20,15 +20,13 @@ describe("Mock Database Usage", () => {
             const result = testDatabase.prepare("SELECT * FROM test").all()
 
             const updateResult = testDatabase.prepare("UPDATE test SET name = 'test2'").run()
-
         })()
-        console.log()
     })
 
     test("can I adapt this to my databaseAccess abstraction?", async () => {
         const testDatabase = Database(":memory:")
 
-        const transactionCreator = createTransactionCreator(testDatabase)
+        const transactionCreator = createTransactionCreator()(testDatabase)
 
         const transactionResult = await transactionCreator<string>(async (executor, pushOnRollback, logger) => {
 
@@ -40,8 +38,6 @@ describe("Mock Database Usage", () => {
 
             return success("HELLO WORLD!")
         })
-
-        console.log(forceGet(transactionResult))
 
         transactionResult.mapError((e) => { throw Error("Test should have succeeded") })
     })
