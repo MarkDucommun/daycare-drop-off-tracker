@@ -4,7 +4,7 @@
 
 ### I can navigate to the trip history from the home screen
 
-- State - NOT TESTED ON DEVICE
+- State - DELIVERED
 - Acceptance Criteria
 
       GIVEN I am on the home screen 
@@ -16,7 +16,7 @@
 
 ### I can navigate to the back from the trip history screen
 
-- State - INCOMPLETE
+- State - DELIVERED
 - Acceptance Criteria
 
       GIVEN I am on the trip history screen 

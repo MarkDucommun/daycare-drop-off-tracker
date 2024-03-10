@@ -1,6 +1,7 @@
 import '@testing-library/react-native/extend-expect';
 import {AppEntry} from "../AppEntry";
-import {act, fireEvent, render} from "@testing-library/react-native";
+import {render} from "@testing-library/react-native";
+import {validateHomeScreen} from "./actions";
 
 // TODO use database access through better-sqlite3
 jest.mock("../navigation/nativeStack", () => jest.requireActual('../navigation/stack'))
@@ -11,20 +12,19 @@ describe("App startup journey", () => {
 
         const screen = render(<AppEntry/>);
 
-        const tripHistoryButton = await screen.findByText("View past trips")
+        const homeScreen = await validateHomeScreen(screen);
 
-        expect(tripHistoryButton).toBeOnTheScreen()
+        await homeScreen.viewPastTrips()
+    })
 
+    test("it can navigate back to Home from Trip History", async () => {
 
-        await act(async () => {
+        const screen = render(<AppEntry/>);
 
-            fireEvent.press(tripHistoryButton)
+        const homeScreen = await validateHomeScreen(screen);
 
-            const tripHistoryTitle = await screen.findByText("Trip History")
+        const tripHistoryScreen = await homeScreen.viewPastTrips()
 
-            expect(tripHistoryTitle).toBeOnTheScreen()
-        })
-
-
+        await tripHistoryScreen.goBack("Home", validateHomeScreen);
     })
 })
