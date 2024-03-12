@@ -28,12 +28,14 @@
 
 ### When I close the app on the trip history screen, the next time I open the app, I should see the trip list screen
 
-- State - INCOMPLETE
+- State - IN PROGRESS
 - Acceptance Criteria
 
       GIVEN I am on the trip history screen 
       WHEN close the app and reopen the app
       THEN I should see the trip history screen
+- Notes
+  - https://reactnavigation.org/docs/state-persistence/
 
 ***
 
