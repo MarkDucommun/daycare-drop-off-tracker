@@ -21,6 +21,9 @@ export const doOnSuccess = <L, R>(fn: (it: R) => void): (result: Result<L, R>) =
 export const onSuccessSetState = <L, R>(setStateDispatch: React.Dispatch<React.SetStateAction<R>>): (result: Result<L, R>) => Result<L, R> => (result) =>
     result.doOnSuccess(setStateDispatch)
 
+export const onSuccessSetStateUninitializedState = <L, R>(setStateDispatch: React.Dispatch<React.SetStateAction<R | undefined>>): (result: Result<L, R>) => Result<L, R> => (result) =>
+    result.doOnSuccess(setStateDispatch)
+
 export const flatMap = <L, R, NR>(fn: (it: R) => Result<L, NR>): (result: Result<L, R>) => Result<L, NR> => (result) =>
     result.flatMap(fn)
 
