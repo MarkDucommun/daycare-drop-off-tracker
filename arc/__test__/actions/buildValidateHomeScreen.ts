@@ -11,13 +11,14 @@ export const buildValidateHomeScreen = (
 
     return {
         type: 'HOME_SCREEN',
+        screen,
         viewPastTrips: async () => await act(async () => {
 
             fireEvent.press(tripHistoryButton);
 
             await waitForElementToBeRemoved(() => screen.queryByText("View past trips"))
 
-            return validateTripHistoryScreen(screen)
+            return await validateTripHistoryScreen(screen)
         })
     }
 }

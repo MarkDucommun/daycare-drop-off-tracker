@@ -9,6 +9,7 @@ export const buildValidateTripHistoryScreen = (): ValidateScreen<TripHistoryScre
 
     return {
         type: 'TRIP_HISTORY_SCREEN',
+        screen,
         goBack: async (text, validateScreen) => {
 
             const homeButton = await screen.findByText(text)

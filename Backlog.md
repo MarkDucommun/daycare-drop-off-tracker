@@ -41,14 +41,14 @@
 
 ### I can see a list of all trips
 
-- State - INCOMPLETE
+- State - DELIVERED
 - Acceptance Criteria
 
       WHEN I am on the trip history screen 
       THEN I should a list of all trips
       AND I should see the following info for each trip
-       - origin ('Home')
        - start time ('2024.01.01 13:00')
+       - origin ('Home')
        - duration ('01:30')
       AND the trips are sorted by latest start time
 

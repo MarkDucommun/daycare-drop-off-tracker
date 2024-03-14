@@ -5,8 +5,7 @@ import {NavigationStateRepository} from "./navigation/NavigationStateRepositoryT
 import {BaseView} from "./styles/baseView";
 import {Text} from "react-native";
 import {databaseFromFileAsync} from "./utilities/database/ExpoSQLiteNextDatabaseAccess";
-import {flatMapAsync} from "./utilities/results/resultCurriers";
-import {setAsyncUninitializedState} from "./utilities/asyncStateHelpers";
+import {flatMapAsync, onSuccessSetStateUninitializedState} from "./utilities/results/resultCurriers";
 
 export const DeviceAppEntry: React.FC = () => {
 
@@ -16,10 +15,9 @@ export const DeviceAppEntry: React.FC = () => {
     ] = useState<NavigationStateRepository>()
 
     useEffect(() => {
-        if (!navigationStateRepository) setAsyncUninitializedState(
-            retrieveNavigationStateRepository("navigation-state-v2.db"),
-            setNavigationStateRepository
-        )
+        if (!navigationStateRepository)
+            retrieveNavigationStateRepository("navigation-state-v2.db")
+                .then(onSuccessSetStateUninitializedState(setNavigationStateRepository))
     }, []);
 
     if (!navigationStateRepository) return <BaseView><Text>Loading</Text></BaseView>
@@ -27,5 +25,6 @@ export const DeviceAppEntry: React.FC = () => {
     return <AppEntry navigationStateRepository={navigationStateRepository}/>
 }
 
-const retrieveNavigationStateRepository = (database: string) => () =>
-    databaseFromFileAsync(database).then(flatMapAsync(buildDatabaseNavigationStateRepository))
+const retrieveNavigationStateRepository = (database: string) =>
+    databaseFromFileAsync(database)
+        .then(flatMapAsync(buildDatabaseNavigationStateRepository))
