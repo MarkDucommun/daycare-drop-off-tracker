@@ -10,4 +10,7 @@ export const baseStyles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    baseFont: {
+        fontFamily: 'Menlo-Regular'
+    }
 });

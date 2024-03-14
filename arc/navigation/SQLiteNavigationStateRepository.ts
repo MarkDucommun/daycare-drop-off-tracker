@@ -1,16 +1,20 @@
 import {AsyncResult} from "../utilities/results/results";
 import {NavigationStateRepository} from "./NavigationStateRepositoryType";
-import {flatMap, flatMapAsync, map, recover} from "../utilities/results/resultCurriers";
+import {
+    failureIfTruthy,
+    flatMap,
+    flatMapAsync,
+    flatMapErrorAsync,
+    map,
+    recover
+} from "../utilities/results/resultCurriers";
 import {DatabaseAccess} from "../utilities/database/DatabaseTypes";
 import {toNull} from "../utilities/results/otherTransforms";
 import {InitialState} from "@react-navigation/native";
 import {createKeyPresenceValidator, createSimpleTypeSafeMapper} from "../utilities/typesafeMapping";
 
-export const buildDatabaseNavigationStateRepository = async (database: DatabaseAccess): AsyncResult<NavigationStateRepository> => {
-
-    return migrate(database)
-        .then(map(constructRepository(database)))
-}
+export const buildDatabaseNavigationStateRepository = async (database: DatabaseAccess): AsyncResult<NavigationStateRepository> =>
+    migrate(database).then(map(constructRepository(database)))
 
 function migrate(database: DatabaseAccess): AsyncResult<null> {
     return database
@@ -20,7 +24,12 @@ function migrate(database: DatabaseAccess): AsyncResult<null> {
                         state TEXT
                     )`
         )
-        .then(flatMapAsync(() => database.execAsync('INSERT INTO navigation_state DEFAULT VALUES')))
+        .then(flatMapAsync(() => database.prepareAsync('SELECT count(*) as count FROM navigation_state')))
+        .then(flatMapAsync((statement) => statement.getFirstAsync([])))
+        .then(flatMap(createSimpleTypeSafeMapper<HasCount>({count: 'number'})))
+        .then(failureIfTruthy(({count}) => count < 1))
+        .then(map(toNull))
+        .then(flatMapErrorAsync(() => database.execAsync('INSERT INTO navigation_state DEFAULT VALUES')))
         .then(map(toNull))
 }
 
@@ -33,15 +42,17 @@ function constructRepository(database: DatabaseAccess): () => NavigationStateRep
 }
 
 function save(database: DatabaseAccess): NavigationStateRepository['save'] {
+
     return (state) =>
         database.runAsync('UPDATE navigation_state SET state = ?', [JSON.stringify(state)])
             .then(map(toNull))
 }
 
 type HasState = { state: string }
+type HasCount = { count: number }
 
 function retrieve(database: DatabaseAccess): NavigationStateRepository['retrieve'] {
-    const hasStateMapper = createSimpleTypeSafeMapper<HasState>({state: 'string'});
+    const hasStateMapper = createSimpleTypeSafeMapper<HasState>({state: 'string'})
     const initialStateKeyValidator = createKeyPresenceValidator<InitialState>({
         key: undefined,
         index: undefined,
@@ -51,6 +62,7 @@ function retrieve(database: DatabaseAccess): NavigationStateRepository['retrieve
     })
 
     return () =>
+
         database.prepareAsync('SELECT state FROM navigation_state')
 
             .then(flatMapAsync((statement) => statement.getFirstAsync([])))

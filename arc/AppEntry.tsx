@@ -1,4 +1,4 @@
-import React, {Dispatch, SetStateAction, useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {InitialState, NavigationContainer, NavigationState} from "@react-navigation/native";
 import {Stack} from "./navigation/nativeStack";
 import {HomeScreen} from "./navigation/HomeScreen";
@@ -6,12 +6,17 @@ import {TripHistoryScreen} from "./trips/TripHistoryScreen";
 import {BaseView} from "./styles/baseView";
 import {Text} from "react-native";
 import {NavigationStateRepository} from "./navigation/NavigationStateRepositoryType";
-import {doOnSuccess, onSuccessSetState} from "./utilities/results/resultCurriers";
-import {betterConsole} from "./utilities/logging/betterConsole";
+import {onSuccessSetState} from "./utilities/results/resultCurriers";
+import {TripStateRepository} from "./trips/TripStateRepositoryType";
+import {TripStateRepositoryProvider} from "./trips/TripStateRepositoryContext";
+import {TimeProviderProvider} from "./utilities/time/TimeProviderContext";
+import {TimeProvider} from "./utilities/time/TimeProvider";
 
 
 type AppProps = {
-    navigationStateRepository: NavigationStateRepository
+    navigationStateRepository: NavigationStateRepository,
+    timeProvider?: TimeProvider,
+    tripStateRepository: TripStateRepository
 }
 
 type SaveState = (state?: NavigationState) => void
@@ -20,7 +25,12 @@ const saveState = (repository: NavigationStateRepository): SaveState => (state) 
     repository.save(state).then()
 }
 
-export const AppEntry: React.FC<AppProps> = ({navigationStateRepository}) => {
+export const AppEntry: React.FC<AppProps> = (
+    {
+        navigationStateRepository,
+        timeProvider,
+        tripStateRepository
+    }) => {
 
     const [isReady, setIsReady] = useState(false)
     const [initialState, setInitialState] = useState<InitialState | undefined>()
@@ -39,9 +49,16 @@ export const AppEntry: React.FC<AppProps> = ({navigationStateRepository}) => {
     if (!isReady) return <BaseView><Text>LOADING</Text></BaseView>
 
     return (<NavigationContainer onStateChange={saveState(navigationStateRepository)} initialState={initialState}>
-        <Stack.Navigator initialRouteName="Home">
-            <Stack.Screen name="Home" component={HomeScreen}/>
-            <Stack.Screen name="Trip History" component={TripHistoryScreen}/>
-        </Stack.Navigator>
+        <TimeProviderProvider injectedProvider={timeProvider}>
+            <TripStateRepositoryProvider injectedRepository={tripStateRepository}>
+                <Stack.Navigator initialRouteName="Home" screenOptions={{
+                    headerTitleStyle: { fontFamily: 'Menlo-Regular' },
+                    headerBackTitleStyle: { fontFamily: 'Menlo-Regular' }
+                }}>
+                    <Stack.Screen name="Home" component={HomeScreen}/>
+                    <Stack.Screen name="Trip History" component={TripHistoryScreen}/>
+                </Stack.Navigator>
+            </TripStateRepositoryProvider>
+        </TimeProviderProvider>
     </NavigationContainer>)
 }

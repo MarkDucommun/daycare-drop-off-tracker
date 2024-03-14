@@ -54,6 +54,17 @@
 
 ***
 
+### I can see an active trip's duration in real time
+
+- State - DELIVERED
+- Acceptance Criteria
+
+      WHEN I am on the trip history screen 
+      THEN I should a list of all trips
+      AND I should see the time for an active trip updating in real time 
+
+***
+
 ### I can navigate to the trip tracker
 
 - State - INCOMPLETE
