@@ -12,17 +12,17 @@ export const buildValidateTripHistoryScreen = (): ValidateScreen<TripHistoryScre
         screen,
         goBack: async (text, validateScreen) => {
 
-            const homeButton = await screen.findByText(text)
+            const homeButton = await screen.findAllByText(text)
 
             return await act(async () => {
 
-                fireEvent.press(homeButton);
+                fireEvent.press(homeButton[0]);
 
                 await waitForElementToBeRemoved(() => screen.queryByText("Trip History"))
 
                 const newScreen =  validateScreen(screen)
 
-                await new Promise(resolve => setTimeout(resolve, 10))
+                await new Promise(resolve => setTimeout(resolve, 100))
 
                 return newScreen
             })

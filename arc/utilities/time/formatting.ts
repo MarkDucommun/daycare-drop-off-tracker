@@ -14,9 +14,11 @@ export function formatDurationShort(duration: number): string {
     const hours = Math.floor(duration % dayMillis / hourMillis)
     const minutes = Math.floor(duration % hourMillis / 60000)
     const seconds = Math.floor(duration % 60000 / 1000)
+
     const daysString = days === 0 ? "" : `${days}d`
     const hoursString = hours === 0 ? "" : `${hours}h`
     const minutesString = minutes === 0 ? "" : `${minutes}m`
     const secondsString = seconds === 0 ? "" : `${seconds}s`
+
     return [daysString, hoursString, minutesString, secondsString].join(" ").trim()
 }

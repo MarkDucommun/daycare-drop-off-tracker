@@ -29,6 +29,24 @@ describe("App startup journey", () => {
         await homeScreen.viewPastTrips()
     })
 
+    test("it can navigate to the Trip Tracker screen from the Home screen", async () => {
+        const db = (await databaseFromFileAsync(":memory:")).forceGet()
+        const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+            .forceGet();
+
+        const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+
+        const screen = render(<AppEntry
+            navigationStateRepository={navigationStateRepositoryController.getRepository()}
+            tripStateRepository={tripStateRepository}
+        />);
+
+        const homeScreen = await validateHomeScreen(screen);
+
+        await homeScreen.viewTripTracker()
+    })
+
+    // TODO move to Trip History block
     test("it can navigate back to Home from Trip History", async () => {
         const db = (await databaseFromFileAsync(":memory:")).forceGet()
         const tripStateRepository = (await buildDatabaseTripStateRepository(db))
@@ -144,6 +162,34 @@ describe("App startup journey", () => {
             })
 
             expect(await firstRow.findByText("27m 30s")).toBeOnTheScreen()
+        })
+    })
+
+    describe("Trip Tracker Screen", () => {
+        it("renders an Origin text field when no Origins have yet been entered", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {screen} = await homeScreen.viewTripTracker()
+
+            const locationInput = await screen.findByPlaceholderText("Origin location name");
+
+            expect(locationInput).toBeOnTheScreen()
+
+            const createLocationButton = await screen.findByText("Create location")
+
+            expect(createLocationButton).toBeOnTheScreen()
         })
     })
 })

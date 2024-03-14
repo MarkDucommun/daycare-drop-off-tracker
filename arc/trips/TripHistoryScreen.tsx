@@ -9,12 +9,13 @@ import {format, formatDurationShort} from "../utilities/time/formatting";
 import {TimeProviderContext} from "../utilities/time/TimeProviderContext";
 
 export const TripHistoryScreen: React.FC = () => {
-    const tripStateRepository = useContext(TripStateRepositoryContext)
+    const {allTrips: retrieveAllTrips} = useContext(TripStateRepositoryContext)
     const {currentTime, runOnInterval} = useContext(TimeProviderContext)
+
     const [allTrips, setAllTrips] = useState<TripStateSummary[]>([])
     const [now, setNow] = useState(currentTime)
 
-    useEffect(setAsyncState(tripStateRepository.allTrips, setAllTrips), [])
+    useEffect(setAsyncState(retrieveAllTrips, setAllTrips), [])
     useEffect(() => runOnInterval(() => setNow(currentTime()), 1000), []);
 
     return (<BaseView>

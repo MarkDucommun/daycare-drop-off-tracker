@@ -67,7 +67,7 @@
 
 ### I can navigate to the trip tracker
 
-- State - INCOMPLETE
+- State - DELIVERED
 - Acceptance Criteria
 
       GIVEN I am on the home screen

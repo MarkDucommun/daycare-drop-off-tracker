@@ -1,13 +1,12 @@
 import {NextTripWithCommit, Trip, TripActionResult, TripRepository} from "./tripTypes";
 import React, {useEffect, useState} from "react";
-import {doOnError, doOnSuccess, flatMap, flatMapAsync, Result} from "./utilities/results";
+import {doOnError, doOnSuccess, flatMap, Result} from "./utilities/results";
 import {Button, StyleSheet, Text, View} from "react-native";
 import {StatusBar} from "expo-status-bar";
 import {Selector} from "./Selector";
 import {ItemValue} from "@react-native-picker/picker/typings/Picker";
 import {createLoggerFromParent, Logger} from "./utilities/logger";
-import {TransactionCreator} from "./utilities/databaseAccess";
-import {SaveDataForEvent, useAccelerationDataSaver} from "./acceleration/useAcceleration";
+import {SaveDataForEvent} from "./acceleration/useAcceleration";
 
 type TripRunnerProps = {
     repository: TripRepository,

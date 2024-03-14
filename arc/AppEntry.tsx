@@ -11,6 +11,7 @@ import {TripStateRepository} from "./trips/TripStateRepositoryType";
 import {TripStateRepositoryProvider} from "./trips/TripStateRepositoryContext";
 import {TimeProviderProvider} from "./utilities/time/TimeProviderContext";
 import {TimeProvider} from "./utilities/time/TimeProvider";
+import {TripTrackerScreen} from "./trips/TripTrackerScreen";
 
 
 type AppProps = {
@@ -51,14 +52,22 @@ export const AppEntry: React.FC<AppProps> = (
     return (<NavigationContainer onStateChange={saveState(navigationStateRepository)} initialState={initialState}>
         <TimeProviderProvider injectedProvider={timeProvider}>
             <TripStateRepositoryProvider injectedRepository={tripStateRepository}>
-                <Stack.Navigator initialRouteName="Home" screenOptions={{
-                    headerTitleStyle: { fontFamily: 'Menlo-Regular' },
-                    headerBackTitleStyle: { fontFamily: 'Menlo-Regular' }
-                }}>
+                <Stack.Navigator initialRouteName="Home" screenOptions={screenOptions}>
                     <Stack.Screen name="Home" component={HomeScreen}/>
                     <Stack.Screen name="Trip History" component={TripHistoryScreen}/>
+                    <Stack.Screen name="Trip Tracker" component={TripTrackerScreen}/>
                 </Stack.Navigator>
             </TripStateRepositoryProvider>
         </TimeProviderProvider>
     </NavigationContainer>)
+}
+
+const screenOptions: {} = {
+    headerTitleStyle: {
+        fontFamily: 'Menlo-Regular',
+        fontWeight: 'bold'
+    },
+    headerBackTitleStyle: {
+        fontFamily: 'Menlo-Regular'
+    }
 }
