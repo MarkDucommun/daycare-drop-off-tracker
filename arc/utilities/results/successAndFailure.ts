@@ -1,4 +1,4 @@
-import {Result} from "./results";
+import {AsyncResult, Result} from "./results";
 
 export function success<L, R>(value: R): Result<L, R> {
     return {
@@ -25,6 +25,8 @@ export function success<L, R>(value: R): Result<L, R> {
         value
     }
 }
+
+export const asyncSuccess = async <R>(value: R): AsyncResult<R> => success(value)
 
 export function failure<L, R>(error: L): Result<L, R> {
     return {

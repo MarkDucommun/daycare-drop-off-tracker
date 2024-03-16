@@ -13,12 +13,12 @@ export type DatabaseAccess = {
 }
 
 export type Statement = {
-    // executeAsync: (params: BindParams) => AsyncResult<RunResult>
-    // executeSync: (params: BindParams) => Result<string, RunResult>
+    executeAsync: (params: BindParams) => AsyncResult<RunResult>
+    executeSync: (params: BindParams) => Result<string, RunResult>
     getFirstAsync: (params: BindParams) => AsyncResult<unknown>
     getFirstSync: (params: BindParams) => Result<string, unknown>
-    // getAllAsync: (params: BindParams) => AsyncResult<unknown[]>
-    // getAllSync: (params: BindParams) => Result<string, unknown[]>
+    getAllAsync: (params: BindParams) => AsyncResult<unknown[]>
+    getAllSync: (params: BindParams) => Result<string, unknown[]>
     // iterateAsync
     // iterateSync
     finalizeAsync: () => AsyncResult<null>
@@ -28,7 +28,7 @@ export type Statement = {
 }
 
 export type RunResult = {
-    lastInsertId: number | bigint,
+    lastInsertId: number,
     changes: number
 }
 

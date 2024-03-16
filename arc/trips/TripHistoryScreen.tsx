@@ -7,15 +7,16 @@ import {TripStateSummary} from "./TripStateRepositoryType";
 import {setAsyncState} from "../utilities/asyncStateHelpers";
 import {format, formatDurationShort} from "../utilities/time/formatting";
 import {TimeProviderContext} from "../utilities/time/TimeProviderContext";
+import {doOnError} from "../utilities/results/resultCurriers";
 
 export const TripHistoryScreen: React.FC = () => {
-    const {allTrips: retrieveAllTrips} = useContext(TripStateRepositoryContext)
+    const {summarizeAllTrips} = useContext(TripStateRepositoryContext)
     const {currentTime, runOnInterval} = useContext(TimeProviderContext)
 
     const [allTrips, setAllTrips] = useState<TripStateSummary[]>([])
     const [now, setNow] = useState(currentTime)
 
-    useEffect(setAsyncState(retrieveAllTrips, setAllTrips), [])
+    useEffect(setAsyncState(() => summarizeAllTrips().then(doOnError(console.log)), setAllTrips), [])
     useEffect(() => runOnInterval(() => setNow(currentTime()), 1000), []);
 
     return (<BaseView>

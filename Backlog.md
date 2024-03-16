@@ -81,7 +81,7 @@
 
 ### I can select a trip origin
 
-- State - INCOMPLETE
+- State - DELIVERED
 - Acceptance Criteria
 
       GIVEN no origins have yet been entered
@@ -90,7 +90,28 @@
       AND I click on the submit button
       THEN I should see a start trip button (start trip - trip tracker screen)
       AND when I navigate to trip history
-      THEN I now see the origin with no start time or duration yet 
+      THEN I now see the origin I entered
+      AND the trip has no start time or duration
+
+Notes: Some architectural thoughts
+- In the last implementation, I made everything that happens to a trip an event
+- Some events had a linked location ID, some had a linked route ID, some had nothing
+- It was quite a hassle to load and hydrate all of these things
+- Maybe I will just start with events only serving to put the trip in a new state, like moving, stoplight, train etc
+- And enter locations and routes separately
+- Should make selecting routes easier as getting the last two locations is considerably easier than filter through all events
+- Maybe it is also worth keeping a pointer on the location join with a trip so I can simply retrieve both of them in one fell swoop
+- Seems like one of my learnings is that I was keeping too much outside of the database
+- I should only keep the info needed to render the things I want to see on the screen
+- Then query the database as needed to render additional info, or at least grow into the structure as needed
+- I think that I want to write this akin to redux where I send an action from the component which will trigger some mutation to the repository and then send back a new representation of the state
+- This way I can simply ask for the last state when reloading the app and it will hydrate the same way as any other state change
+- Probably makes sense to even use the useReducer hook to manage the state of the trip tracker?
+- The only problem with this is that it more widely opens the door to the possibility of landing in illegal states
+- The previous representation was good as well, maybe some blended approach
+- Going to start with the trip table having a single foreign key to the location table, the origin
+- Then I will add a join table to routes
+- Wont have any other direct pointers to locations, they will just be joined to the trip through the trips routes
 
 ***
 
@@ -106,6 +127,30 @@
        - origin ('Home')
        - start time ('2024.01.01 13:00') 
        - duration ('01:30')
+
+***
+
+### I resume the trip I left off on if the app closes
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have selected an origin
+      WHEN I close the app
+      AND reopen the app
+      THEN I should see the Trip Tracker screen and a start trip button
+
+***
+
+### I resume the trip I left off on if I navigate away from the trip tracker
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have selected an origin
+      WHEN I navigate back to the Home Screen 
+      AND I navigate back to the Trip Tracker
+      THEN I should see the Trip Tracker screen and a start trip button
 
 ***
 

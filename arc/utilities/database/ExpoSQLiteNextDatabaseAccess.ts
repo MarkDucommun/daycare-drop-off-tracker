@@ -2,7 +2,7 @@ import {CreateDatabaseFromFileAsync, DatabaseAccess, RunResult, Statement} from 
 import {failure, success} from "../results/successAndFailure";
 import {AsyncResult} from "../results/results";
 import * as SQLite from "expo-sqlite/next";
-import {flatMapAsync, map, todo} from "../results/resultCurriers";
+import {flatMapAsync, map} from "../results/resultCurriers";
 import {safelyExecute, safelyExecuteAsync, toNull} from "../results/otherTransforms";
 
 export const databaseFromFileAsync: CreateDatabaseFromFileAsync = async (path) => {
@@ -35,53 +35,40 @@ function executeSync(database: SQLite.SQLiteDatabase): DatabaseAccess['execSync'
 }
 
 function runAsync(database: SQLite.SQLiteDatabase): DatabaseAccess['runAsync'] {
-    return (sql, params) => {
-        return safelyExecuteAsync(() => database.runAsync(sql, params))
-            .then(map(runResultFromSQLiteResult))
-    }
+    return (sql, params) => safelyExecuteAsync(() => database.runAsync(sql, params))
+            .then(map(runResultFromSQLite))
 }
 
 function runSync(database: SQLite.SQLiteDatabase): DatabaseAccess['runSync'] {
     return (sql, params) => safelyExecute(() => database.runSync(sql, params))
-        .map(runResultFromSQLiteResult)
+        .map(runResultFromSQLite)
 }
 
-function runResultFromSQLiteResult(result: SQLite.SQLiteRunResult): RunResult {
+function  runResultFromSQLite<T extends {lastInsertRowId: number, changes: number}>(result: T): RunResult {
     return {lastInsertId: result.lastInsertRowId, changes: result.changes}
 }
 
 function prepareAsync(database: SQLite.SQLiteDatabase): DatabaseAccess['prepareAsync'] {
-    return async (sql) => {
-
-        const rawStatement = await safelyExecuteAsync(() => database.prepareAsync(sql));
-
-        if (rawStatement.type == "failure") return todo()
-
-        const statement: Statement = {
-            getFirstSync: getFirstSync(rawStatement.value),
-            getFirstAsync: getFirstAsync(rawStatement.value),
-            finalizeSync: finalizeSync(rawStatement.value),
-            finalizeAsync: finalizeAsync(rawStatement.value)
-        }
-
-        return success(statement)
-    }
+    return async (sql) =>
+        safelyExecuteAsync(() => database.prepareAsync(sql))
+            .then(map(constructStatement))
 }
+
 function prepareSync(database: SQLite.SQLiteDatabase): DatabaseAccess['prepareSync'] {
-    return (sql) => {
+    return (sql) => safelyExecute(() => database.prepareSync(sql))
+            .map(constructStatement)
+}
 
-        const rawStatement = safelyExecute(() => database.prepareSync(sql));
-
-        if (rawStatement.type == "failure") return todo()
-
-        const statement: Statement = {
-            getFirstSync: getFirstSync(rawStatement.value),
-            getFirstAsync: getFirstAsync(rawStatement.value),
-            finalizeSync: finalizeSync(rawStatement.value),
-            finalizeAsync: finalizeAsync(rawStatement.value)
-        }
-
-        return success(statement)
+function constructStatement(statement: SQLite.SQLiteStatement): Statement {
+    return {
+        getFirstSync: getFirstSync(statement),
+        getFirstAsync: getFirstAsync(statement),
+        getAllSync: getAllSync(statement),
+        getAllAsync: getAllAsync(statement),
+        executeAsync: execAsync(statement),
+        executeSync: execSync(statement),
+        finalizeSync: finalizeSync(statement),
+        finalizeAsync: finalizeAsync(statement)
     }
 }
 
@@ -93,6 +80,26 @@ function getFirstAsync(statement: SQLite.SQLiteStatement): Statement['getFirstAs
 function getFirstSync(statement: SQLite.SQLiteStatement): Statement['getFirstSync'] {
     return (params) => safelyExecute(() => statement.executeSync(params))
         .flatMap((result) => safelyExecute(result.getFirstSync))
+}
+
+function getAllAsync(statement: SQLite.SQLiteStatement): Statement['getAllAsync'] {
+    return (params) => safelyExecuteAsync(() => statement.executeAsync(params))
+        .then(flatMapAsync((result) => safelyExecuteAsync(result.getAllAsync)))
+}
+
+function getAllSync(statement: SQLite.SQLiteStatement): Statement['getAllSync'] {
+    return (params) => safelyExecute(() => statement.executeSync(params))
+        .flatMap((result) => safelyExecute(result.getAllSync))
+}
+
+function execAsync(statement: SQLite.SQLiteStatement): Statement['executeAsync'] {
+    return (params) => safelyExecuteAsync(() => statement.executeAsync(params))
+        .then(map(runResultFromSQLite))
+}
+
+function execSync(statement: SQLite.SQLiteStatement): Statement['executeSync'] {
+    return (params) => safelyExecute(() => statement.executeSync(params))
+        .map(runResultFromSQLite)
 }
 
 function finalizeAsync(statement: SQLite.SQLiteStatement): Statement['finalizeAsync'] {

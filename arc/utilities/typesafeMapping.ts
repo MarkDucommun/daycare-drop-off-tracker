@@ -1,5 +1,6 @@
 import {Result} from "./results/results";
 import {failure, success} from "./results/successAndFailure";
+import {traverse} from "./results/traverse";
 
 type KeyInfo = {
     type: 'string' | 'number' | 'boolean' | 'object'
@@ -26,8 +27,15 @@ export const createKeyPresenceValidator = <T>(details: KeyList<T>) => (input: un
         .map(() => input as T)
 }
 
+type SimpleMapper<T> = (input: unknown) => Result<string, T>
 
-export const createSimpleTypeSafeMapper = <T>(details: SimpleTypeDetails<T>): (input: unknown) => Result<string, T> => {
+export const mapAll = <T>(mapper: SimpleMapper<T>)=> (all: unknown[]): Result<string, T[]> => traverse(all.map(mapper))
+
+
+export const flatMapAll = <T, U>(transform: (input: T) => Result<string, U>) => (all: T[]): Result<string, U[]> => traverse(all.map(transform))
+export const transformAll = <T, U>(transform: (input: T) => U) => (all: T[]): U[] => all.map(transform)
+
+export const createSimpleTypeSafeMapper = <T>(details: SimpleTypeDetails<T>): SimpleMapper<T> => {
     return (input) => {
 
         if (typeof input !== 'object' || input === null) return failure("Input is not an object")

@@ -25,7 +25,7 @@ function migrate(database: DatabaseAccess): AsyncResult<null> {
                     )`
         )
         .then(flatMapAsync(() => database.prepareAsync('SELECT count(*) as count FROM navigation_state')))
-        .then(flatMapAsync((statement) => statement.getFirstAsync([])))
+        .then(flatMapAsync((statement) => statement.getFirstAsync([]).finally(statement.finalizeAsync)))
         .then(flatMap(createSimpleTypeSafeMapper<HasCount>({count: 'number'})))
         .then(failureIfTruthy(({count}) => count < 1))
         .then(map(toNull))
@@ -65,7 +65,7 @@ function retrieve(database: DatabaseAccess): NavigationStateRepository['retrieve
 
         database.prepareAsync('SELECT state FROM navigation_state')
 
-            .then(flatMapAsync((statement) => statement.getFirstAsync([])))
+            .then(flatMapAsync((statement) => statement.getFirstAsync([]).finally(statement.finalizeAsync)))
 
             .then(flatMap(hasStateMapper))
 

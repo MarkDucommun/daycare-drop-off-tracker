@@ -1,6 +1,6 @@
 import '@testing-library/react-native/extend-expect';
 import {AppEntry} from "../AppEntry";
-import {act, render, within} from "@testing-library/react-native";
+import {act, fireEvent, render, within} from "@testing-library/react-native";
 import {validateHomeScreen, validateTripHistoryScreen} from "./actions";
 import {buildInMemoryNavigationStateRepository} from "../navigation/InMemoryNavigationStateRepository";
 import {buildDatabaseNavigationStateRepository} from "../navigation/SQLiteNavigationStateRepository";
@@ -190,6 +190,64 @@ describe("App startup journey", () => {
             const createLocationButton = await screen.findByText("Create location")
 
             expect(createLocationButton).toBeOnTheScreen()
+        })
+
+        it("can submit a new Origin location field when no Origins have yet been entered", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {screen, goBack} = await homeScreen.viewTripTracker()
+
+            const locationInput = await screen.findByPlaceholderText("Origin location name");
+
+            await act(async () => {
+                fireEvent.changeText(locationInput, "Daycare");
+            })
+
+            await act(async () => {
+                await new Promise(resolve => setTimeout(resolve, 1000))
+            })
+
+            const createLocationButton = await screen.findByText("Create location")
+
+            await act(async () => {
+                fireEvent.press(createLocationButton);
+                await new Promise(resolve => setTimeout(resolve, 100))
+            })
+
+            const startButton = await screen.findByText("Start trip")
+
+            expect(startButton).toBeOnTheScreen()
+
+            await goBack("Home", validateHomeScreen)
+
+            const nextScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const {viewPastTrips} = await validateHomeScreen(nextScreen)
+
+            const tripHistoryScreen = await viewPastTrips();
+
+            const rows = await tripHistoryScreen.screen.findAllByTestId("row")
+
+            const lastTrip = within(rows[0])
+
+            expect(await lastTrip.findByText("Daycare")).toBeOnTheScreen()
+
+            expect(await lastTrip.queryByText(RegExp(/[0-9]+m [0-9]+s/))).not.toBeOnTheScreen()
         })
     })
 })

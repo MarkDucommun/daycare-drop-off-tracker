@@ -1,4 +1,4 @@
-import {CreateDatabaseFromFileAsync, DatabaseAccess, RunResult, Statement} from "./DatabaseTypes";
+import {CreateDatabaseFromFileAsync, DatabaseAccess, Statement} from "./DatabaseTypes";
 import {failure, success} from "../results/successAndFailure";
 import {AsyncResult} from "../results/results";
 import {safelyExecute, toNull} from "../results/otherTransforms";
@@ -41,7 +41,9 @@ function runAsync(database: DatabaseType): DatabaseAccess['runAsync'] {
 
 function runSync(database: DatabaseType): DatabaseAccess['runSync'] {
     return (sql, params) => safelyExecute(() => database.prepare(sql).run(params))
-        .map((a): RunResult => ({lastInsertId: a.lastInsertRowid, changes: a.changes}))
+        .flatMap((a) => typeof a.lastInsertRowid === "bigint" ?
+            failure("cannot handle bigints") :
+            success({lastInsertId: a.lastInsertRowid, changes: a.changes}))
 }
 
 function prepareAsync(database: DatabaseType): DatabaseAccess['prepareAsync'] {
@@ -54,13 +56,17 @@ function prepareSync(database: DatabaseType): DatabaseAccess['prepareSync'] {
 
         const prepareResult = safelyExecute(() => database.prepare(sql));
 
-        if (prepareResult.type == "failure") return todo()
+        if (prepareResult.type == "failure") return failure(prepareResult.error)
 
         const rawStatement = database.prepare(sql);
 
         const statement: Statement = {
             getFirstSync: getFirstSync(rawStatement),
             getFirstAsync: getFirstAsync(rawStatement),
+            getAllSync: getAllSync(rawStatement),
+            getAllAsync: getAllAsync(rawStatement),
+            executeSync: execSync(rawStatement),
+            executeAsync: execAsync(rawStatement),
             finalizeSync: finalizeSync(rawStatement),
             finalizeAsync: finalizeAsync(rawStatement)
         }
@@ -75,6 +81,25 @@ function getFirstAsync(statement: StatementType): Statement['getFirstAsync'] {
 
 function getFirstSync(statement: StatementType): Statement['getFirstSync'] {
     return (params) => safelyExecute(() => statement.get(params))
+}
+
+function getAllAsync(statement: StatementType): Statement['getAllAsync'] {
+    return async (params) => getAllSync(statement)(params)
+}
+
+function getAllSync(statement: StatementType): Statement['getAllSync'] {
+    return (params) => safelyExecute(() => statement.all(params))
+}
+
+function execAsync(statement: StatementType): Statement['executeAsync'] {
+    return async (params) => execSync(statement)(params)
+}
+
+function execSync(statement: StatementType): Statement['executeSync'] {
+    return (params) => safelyExecute(() => statement.run(params))
+        .flatMap((a) => typeof a.lastInsertRowid === "bigint" ?
+            failure("") :
+            success({lastInsertId: a.lastInsertRowid, changes: a.changes}))
 }
 
 function finalizeAsync(statement: StatementType): Statement['finalizeAsync'] {

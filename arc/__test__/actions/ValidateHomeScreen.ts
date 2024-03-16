@@ -17,13 +17,13 @@ export const buildValidateHomeScreen = (
         screen,
         viewPastTrips: async () => await act(async () => {
 
-            fireEvent.press(tripHistoryButton);
+            fireEvent.press(tripHistoryButton)
 
             await waitForElementToBeRemoved(() => screen.queryByText("View past trips"))
 
             const newScreen = await validateTripHistoryScreen(screen);
 
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await new Promise(resolve => setTimeout(resolve, 100))
 
             return newScreen
         }),
