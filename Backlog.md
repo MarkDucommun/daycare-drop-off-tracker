@@ -2,7 +2,7 @@
 
 ***
 
-### I can navigate to the trip history from the home screen
+### DONE I can navigate to the trip history from the home screen
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -14,7 +14,7 @@
 
 ***
 
-### I can navigate to the back from the trip history screen
+### DONE I can navigate to the back from the trip history screen
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -26,7 +26,7 @@
 
 ***
 
-### When I close the app on the trip history screen, the next time I open the app, I should see the trip list screen
+### DONE When I close the app on the trip history screen, the next time I open the app, I should see the trip list screen
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -39,7 +39,7 @@
 
 ***
 
-### I can see a list of all trips
+### DONE I can see a list of all trips
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -54,7 +54,7 @@
 
 ***
 
-### I can see an active trip's duration in real time
+### DONE I can see an active trip's duration in real time
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -65,7 +65,7 @@
 
 ***
 
-### I can navigate to the trip tracker
+### DONE I can navigate to the trip tracker
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -79,7 +79,7 @@
 
 ***
 
-### I can select a trip origin
+### DONE I can select a trip origin
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -115,7 +115,7 @@ Notes: Some architectural thoughts
 
 ***
 
-### I resume the trip I left off on if the app closes
+### DONE I resume the trip I left off on if the app closes
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -127,7 +127,7 @@ Notes: Some architectural thoughts
 
 ***
 
-### I can see what my origin is in the Trip Tracker
+### DONE I can see what my origin is in the Trip Tracker
 
 - State - DELIVERED
 - Acceptance Criteria
@@ -140,7 +140,7 @@ Notes: Some architectural thoughts
 
 ### I can cancel a trip that I haven't started, but have selected an origin for
 
-- State - INCOMPLETE
+- State - IN PROGRESS
 - Acceptance Criteria
 
       GIVEN I have selected an origin
@@ -155,6 +155,17 @@ Notes: Some architectural thoughts
       ---
       WHEN I select no
       THEN I see the trip tracker start screen
+***
+
+### DONE I can see that a trip is cancelled on the Trip History Screen 
+
+- State - DELIVERED
+- Acceptance Criteria
+
+      WHEN I am on the trip history screen 
+      THEN I should a list of all trips
+      AND I should see if each trip was cancelled because it's text is crossed out
+
 ***
 
 ### I can see trip details

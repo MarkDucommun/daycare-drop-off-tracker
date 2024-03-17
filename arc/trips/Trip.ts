@@ -1,4 +1,9 @@
-import {TripStateWithOrigin, TripStateWithoutOrigin, TripStateWithSavedOrigin} from "./TripStateRepositoryType";
+import {
+    TripState,
+    TripStateWithOrigin,
+    TripStateWithoutOrigin,
+    TripStateWithSavedOrigin
+} from "./TripStateRepositoryType";
 
 export type TripWithoutOrigin = {
     type: 'withoutOrigin'
@@ -9,7 +14,13 @@ export type TripWithoutOrigin = {
 export type TripWithOrigin = {
     type: 'pending'
     start: () => void
+    cancel: () => void
     state: TripStateWithOrigin | TripStateWithSavedOrigin
+}
+
+export type CanceledTrip = {
+    type: 'canceled'
+    state: TripState
 }
 
 export type Trip = TripWithoutOrigin | TripWithOrigin

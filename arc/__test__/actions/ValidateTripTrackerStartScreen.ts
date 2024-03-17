@@ -24,12 +24,28 @@ export const buildValidateTripTrackerStartScreen = (): ValidateScreen<TripTracke
 
                 await waitForElementToBeRemoved(() => screen.queryByText("Trip Tracker"))
 
-                const newScreen =  validateScreen(screen)
+                const newScreen = validateScreen(screen)
 
                 await new Promise(resolve => setTimeout(resolve, 100))
 
                 return newScreen
             })
         },
+        cancelTrip: async (validateScreen) => {
+
+            const cancelButton = await screen.findByText("Cancel trip")
+
+            return await act(async () => {
+                fireEvent.press(cancelButton);
+
+                await waitForElementToBeRemoved(() => screen.queryByText("Trip Tracker"))
+
+                const newScreen = validateScreen(screen)
+
+                await new Promise(resolve => setTimeout(resolve, 100))
+
+                return newScreen
+            })
+        }
     }
 }

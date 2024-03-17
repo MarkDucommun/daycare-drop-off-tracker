@@ -91,10 +91,15 @@ type StartScreenProps = {
 
 const StartScreen: React.FC<StartScreenProps> = ({trip}) => {
     return (<BaseView>
-        <Text style={baseStyles.baseFont}>At {trip.state.type === "trip-state-with-origin" ? trip.state.origin : trip.state.origin.name}</Text>
+        <Text
+            style={baseStyles.baseFont}>At {trip.state.type === "trip-state-with-origin" ? trip.state.origin : trip.state.origin.name}</Text>
         <TouchableOpacity>
             <Text style={styles.createButton}>Start trip</Text>
         </TouchableOpacity>
+        <TouchableOpacity>
+            <Text style={styles.createButton}>Cancel trip</Text>
+        </TouchableOpacity>
+
     </BaseView>)
 }
 

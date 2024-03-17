@@ -10,7 +10,8 @@ export type TripStateSummary = {
     id: number,
     origin: string,
     startTime: number,
-    endTime?: number
+    endTime?: number,
+    canceled?: boolean
 }
 
 export type TripState =
@@ -26,6 +27,7 @@ export type TripSaveMap = {
 
 interface TripStateType {
     type: keyof TripSaveMap
+    canceled?: boolean
 }
 
 export type ConditionalTripState<T extends TripState> =

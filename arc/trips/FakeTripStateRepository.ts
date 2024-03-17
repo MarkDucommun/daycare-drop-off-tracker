@@ -66,7 +66,8 @@ function summarizeAllTrips(database: DatabaseAccess): TripStateRepository['summa
                 id: 2,
                 origin: "Home",
                 startTime: new Date(2024, 0, 1, 8).getTime(),
-                endTime: new Date(2024, 0, 1, 8, 30).getTime()
+                endTime: new Date(2024, 0, 1, 8, 30).getTime(),
+                canceled: true
             },
         ]))
 }

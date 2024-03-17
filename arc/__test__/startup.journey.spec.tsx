@@ -163,6 +163,33 @@ describe("App startup journey", () => {
 
             expect(await firstRow.findByText("27m 30s")).toBeOnTheScreen()
         })
+
+        it("shows if a trip has been cancelled", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const currentDate = new Date(2024, 0, 2, 8, 27, 15);
+
+            const {timeProvider, timeController} = createControllableTimeProvider(currentDate.getTime())
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+                timeProvider={timeProvider}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {screen} = await homeScreen.viewPastTrips()
+
+            const lastRow = within((await screen.findAllByTestId("row"))[1]);
+
+            expect(await lastRow.findByText("Cancelled")).toBeOnTheScreen()
+        })
     })
 
     describe("Trip Tracker Origin Screen", () => {

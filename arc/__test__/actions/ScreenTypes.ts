@@ -28,5 +28,6 @@ export type TripTrackerScreen = {
 export type TripTrackerStartScreen = {
     type: 'TRIP_TRACKER_START_SCREEN'
     goBack: <T extends Screen> (text: string, validateScreen: ValidateScreen<T>) => Promise<T>
+    cancelTrip: <T extends Screen> (validateScreen: ValidateScreen<T>) => Promise<HomeScreen>
     screen: RenderResult
 }

@@ -32,12 +32,14 @@ const tripStateSummaryToRow = (now: number) => (trip: TripStateSummary): DataRow
     return [
         format(trip.startTime),
         trip.origin,
-        formatDurationShort(duration)
+        formatDurationShort(duration),
+        trip.canceled ? 'Cancelled' : ''
     ]
 }
 
 const headerColumns: HeaderColumn[] = [
-    {caption: 'Start', index: 0, width: '40%'},
-    {caption: 'Origin', index: 1, width: '30%'},
-    {caption: 'Duration', index: 2, width: '30%'},
+    {caption: 'Start', index: 0, width: '36%'},
+    {caption: 'Origin', index: 1, width: '18%'},
+    {caption: 'Duration', index: 2, width: '27%'},
+    {caption: 'State', index: 3, width: '19%'},
 ]
