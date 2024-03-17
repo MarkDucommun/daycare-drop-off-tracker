@@ -1,7 +1,9 @@
-import {TripTrackerScreen, ValidateScreen} from "./ScreenTypes";
-import {act, fireEvent, waitForElementToBeRemoved} from "@testing-library/react-native";
+import {TripTrackerScreen, TripTrackerStartScreen, ValidateScreen} from "./ScreenTypes";
+import {act, fireEvent} from "@testing-library/react-native";
 
-export const buildValidateTripTrackerScreen = (): ValidateScreen<TripTrackerScreen> => async (screen) => {
+export const buildValidateTripTrackerScreen = (
+    validateTripTrackerStartScreen: ValidateScreen<TripTrackerStartScreen>
+): ValidateScreen<TripTrackerScreen> => async (screen) => {
 
     const tripTrackerTitle = await screen.findByText("Trip Tracker")
 
@@ -18,14 +20,31 @@ export const buildValidateTripTrackerScreen = (): ValidateScreen<TripTrackerScre
 
                 fireEvent.press(homeButton);
 
-                await waitForElementToBeRemoved(() => screen.queryByText("Trip Tracker"))
-
                 const newScreen =  validateScreen(screen)
 
                 await new Promise(resolve => setTimeout(resolve, 100))
 
                 return newScreen
             })
+        },
+        enterNewOrigin: async (origin) => {
+
+            const locationInput = await screen.findByPlaceholderText("Origin location name");
+
+            await act(async () => fireEvent.changeText(locationInput, "Daycare"))
+
+            const createLocationButton = await screen.findByText("Create location")
+
+            await act(async () => {
+                fireEvent.press(createLocationButton);
+                await new Promise(resolve => setTimeout(resolve, 100))
+            })
+
+            const newScreen = await validateTripTrackerStartScreen(screen)
+
+            await new Promise(resolve => setTimeout(resolve, 100))
+
+            return newScreen
         }
     }
 }

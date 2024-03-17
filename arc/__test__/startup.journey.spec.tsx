@@ -1,7 +1,7 @@
 import '@testing-library/react-native/extend-expect';
 import {AppEntry} from "../AppEntry";
-import {act, fireEvent, render, within} from "@testing-library/react-native";
-import {validateHomeScreen, validateTripHistoryScreen} from "./actions";
+import {act, render, within} from "@testing-library/react-native";
+import {validateHomeScreen, validateTripHistoryScreen, validateTripTrackerStartScreen} from "./actions";
 import {buildInMemoryNavigationStateRepository} from "../navigation/InMemoryNavigationStateRepository";
 import {buildDatabaseNavigationStateRepository} from "../navigation/SQLiteNavigationStateRepository";
 import {databaseFromFileAsync} from "../utilities/database/BetterSQLiteDatabaseAccess";
@@ -207,28 +207,9 @@ describe("App startup journey", () => {
 
             const homeScreen = await validateHomeScreen(initialScreen);
 
-            const {screen, goBack} = await homeScreen.viewTripTracker()
+            const {enterNewOrigin} = await homeScreen.viewTripTracker()
 
-            const locationInput = await screen.findByPlaceholderText("Origin location name");
-
-            await act(async () => {
-                fireEvent.changeText(locationInput, "Daycare");
-            })
-
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 1000))
-            })
-
-            const createLocationButton = await screen.findByText("Create location")
-
-            await act(async () => {
-                fireEvent.press(createLocationButton);
-                await new Promise(resolve => setTimeout(resolve, 100))
-            })
-
-            const startButton = await screen.findByText("Start trip")
-
-            expect(startButton).toBeOnTheScreen()
+            const {goBack} = await enterNewOrigin("Daycare");
 
             await goBack("Home", validateHomeScreen)
 
@@ -248,6 +229,33 @@ describe("App startup journey", () => {
             expect(await lastTrip.findByText("Daycare")).toBeOnTheScreen()
 
             expect(await lastTrip.queryByText(RegExp(/[0-9]+m [0-9]+s/))).not.toBeOnTheScreen()
+        })
+
+        it("remains on the Start screen when the App is closed and reopened after an origin is selected", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {enterNewOrigin} = await homeScreen.viewTripTracker()
+
+            await enterNewOrigin("Daycare");
+
+            const reloadedScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            await validateTripTrackerStartScreen(reloadedScreen)
         })
     })
 })

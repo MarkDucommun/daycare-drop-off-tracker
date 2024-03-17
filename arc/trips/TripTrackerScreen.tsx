@@ -1,8 +1,8 @@
-import React, {useContext, useState} from "react";
+import React, {useContext, useEffect, useState} from "react";
 import {baseStyles, BaseView} from "../styles/baseView";
 import {StyleSheet, Text, TextInput, TouchableOpacity} from "react-native";
 import {TripStateRepositoryContext} from "./TripStateRepositoryContext";
-import {TripStateWithoutOrigin} from "./TripStateRepositoryType";
+import {TripStateWithOrigin, TripStateWithoutOrigin, TripStateWithSavedOrigin} from "./TripStateRepositoryType";
 import {Trip, TripWithOrigin, TripWithoutOrigin} from "./Trip";
 import {doOnSuccess} from "../utilities/results/resultCurriers";
 
@@ -11,17 +11,22 @@ const defaultTripState: TripStateWithoutOrigin = {
     locations: []
 }
 
+const buildTripWithOrigin = (tripState: TripStateWithOrigin | TripStateWithSavedOrigin): TripWithOrigin => {
+    return {
+        start: () => {
+        },
+        state: tripState,
+        type: "pending"
+    }
+}
+
 const defaultTrip: TripWithoutOrigin = {
     selectOrigin(origin) {
-        return {
-            start: () => {},
-            state: {
-                type: 'trip-state-with-origin',
-                locations: [...this.state.locations, origin],
-                origin: origin,
-            },
-            type: "pending"
-        }
+        return buildTripWithOrigin({
+            type: 'trip-state-with-origin',
+            locations: [...this.state.locations, origin],
+            origin: origin,
+        })
     },
     state: defaultTripState,
     type: "withoutOrigin"
@@ -33,12 +38,26 @@ export const TripTrackerScreen: React.FC = () => {
 
     const [trip, setTrip] = useState<Trip>(defaultTrip)
 
-    return trip.type == 'withoutOrigin' ? <OriginScreen trip={trip} save={(trip) => {
-        tripStateRepository.save(trip.state).then(doOnSuccess(r => {
-            const newTrip: TripWithOrigin = { ...trip, state: r }
-            setTrip(newTrip)
-        }))
-    }}/> : <StartScreen trip={trip}/>
+    useEffect(() => {
+        tripStateRepository.currentTrip()
+            .then(doOnSuccess(tripState => {
+                switch (tripState?.type) {
+                    case 'trip-state-with-origin': return setTrip(buildTripWithOrigin(tripState as TripStateWithOrigin))
+                    case 'trip-state-with-saved-origin': return setTrip(buildTripWithOrigin(tripState as TripStateWithSavedOrigin))
+                    case 'trip-state-without-origin': return 'TODO: handle this case'
+                    default: return setTrip(defaultTrip)
+                }
+            }))
+    }, []);
+
+    const saveTripWithOrigin = (trip: TripWithOrigin) => {
+        tripStateRepository.save(trip.state)
+            .then(doOnSuccess(state => setTrip({...trip, state})))
+    }
+
+    return trip.type == 'withoutOrigin' ?
+        <OriginScreen trip={trip} save={saveTripWithOrigin}/> :
+        <StartScreen trip={trip}/>
 }
 
 type OriginScreenProps = {
@@ -50,7 +69,8 @@ const OriginScreen: React.FC<OriginScreenProps> = ({trip, save}) => {
     const [originLocation, setOriginLocation] = useState<string>()
 
     return (<BaseView>
-        <TextInput style={styles.locationInput} textAlign={"center"} onChangeText={setOriginLocation} placeholder="Origin location name"/>
+        <TextInput style={styles.locationInput} textAlign={"center"} onChangeText={setOriginLocation}
+                   placeholder="Origin location name"/>
         <TouchableOpacity onPress={() => {
             // TODO validate cannot submit empty location
             save(trip.selectOrigin(originLocation!!))

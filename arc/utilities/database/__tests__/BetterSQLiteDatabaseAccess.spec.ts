@@ -6,14 +6,20 @@ describe("BetterSQLiteDatabaseAccess", () => {
 
         expect(db).toBeDefined()
 
-        db.execSync("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
-        db.execSync("INSERT INTO test (name) VALUES ('A')")
-        db.execSync("INSERT INTO test (name) VALUES ('B')")
-        db.execSync("INSERT INTO test (name) VALUES ('C')")
+        await db.execAsync("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
+        await db.execAsync("INSERT INTO test (name) VALUES ('A')")
+        await db.execAsync("INSERT INTO test (name) VALUES ('B')")
+        await db.execAsync("INSERT INTO test (name) VALUES ('C')")
 
         const statement = db.prepareSync("SELECT * FROM test").forceGet()
 
-        expect(statement.getFirstSync([]).forceGet()).toEqual(({id: 1, name: "A"}))
+        const all = (await statement.getAllAsync([])).forceGet()
+
+        expect(all).toEqual([
+            {id: 1, name: "A"},
+            {id: 2, name: "B"},
+            {id: 3, name: "C"}
+        ])
 
         statement.finalizeSync()
     })

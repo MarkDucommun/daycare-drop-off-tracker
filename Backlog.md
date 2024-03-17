@@ -115,6 +115,48 @@ Notes: Some architectural thoughts
 
 ***
 
+### I resume the trip I left off on if the app closes
+
+- State - DELIVERED
+- Acceptance Criteria
+
+      GIVEN I have selected an origin
+      WHEN I close the app
+      AND reopen the app
+      THEN I should see the Trip Tracker screen and a start trip button
+
+***
+
+### I can see what my origin is in the Trip Tracker
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have selected an origin
+      WHEN I am on the Trip Tracker Start screen
+      THEN I should see the origin I selected 'At xxxxx'
+
+***
+
+### I can cancel a trip that I haven't started, but have selected an origin for
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have selected an origin
+      AND I am on the Trip Tracker Start screen
+      WHEN I click on the cancel trip button
+      THEN I should see a modal asking whether I'd like to cancel the trip
+      ---
+      WHEN I select yes
+      THEN I see the home screen
+      WHEN I return to the trip tracker
+      THEN I see the trip tracker start screen
+      ---
+      WHEN I select no
+      THEN I see the trip tracker start screen
+***
+
 ### I can see trip details
 
 - State - INCOMPLETE
@@ -127,18 +169,6 @@ Notes: Some architectural thoughts
        - origin ('Home')
        - start time ('2024.01.01 13:00') 
        - duration ('01:30')
-
-***
-
-### I resume the trip I left off on if the app closes
-
-- State - INCOMPLETE
-- Acceptance Criteria
-
-      GIVEN I have selected an origin
-      WHEN I close the app
-      AND reopen the app
-      THEN I should see the Trip Tracker screen and a start trip button
 
 ***
 
@@ -166,6 +196,42 @@ Notes: Some architectural thoughts
       AND when I navigate to trip history
       THEN I should see both a start time and a duration
 
+***
+
+### I can undo starting a trip that I have started
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have started a trip
+      AND I am on the Trip Tracker Moving Screen
+      WHEN I click on the undo button
+      THEN I should see a modal asking whether I'd like to undo starting the trip
+      ---
+      WHEN I select yes
+      THEN I see the Trip Tracker Start screen
+      ---
+      WHEN I select no
+      THEN I see the Trip Tracker Moving screen
+***
+
+### I can cancel a trip that I have started
+
+- State - INCOMPLETE
+- Acceptance Criteria
+
+      GIVEN I have started a trip
+      AND I am on the Trip Tracker Moving screen
+      WHEN I click on the cancel trip button
+      THEN I should see a modal asking whether I'd like to cancel the trip
+      ---
+      WHEN I select yes
+      THEN I see the home screen
+      WHEN I return to the trip tracker
+      THEN I see the trip tracker origin screen
+      ---
+      WHEN I select no
+      THEN I see the trip tracker moving screen
 ***
 
 ### I can indicate that I have arrived at a location

@@ -2,6 +2,7 @@ import {AsyncResult} from "../utilities/results/results";
 
 export type TripStateRepository = {
     save: <T extends TripState>(tripState: T) => AsyncResult<ConditionalTripState<T>>,
+    currentTrip: () => AsyncResult<TripState | null>,
     summarizeAllTrips: () => AsyncResult<TripStateSummary[]>
 }
 
@@ -12,7 +13,10 @@ export type TripStateSummary = {
     endTime?: number
 }
 
-export type TripState = TripStateWithoutOrigin | TripStateWithOrigin | TripStateWithSavedOrigin
+export type TripState =
+    TripStateWithoutOrigin |
+    TripStateWithOrigin |
+    TripStateWithSavedOrigin
 
 export type TripSaveMap = {
     'trip-state-without-origin': TripStateWithoutOrigin
@@ -24,9 +28,10 @@ interface TripStateType {
     type: keyof TripSaveMap
 }
 
-export type ConditionalTripState<T extends TripState> = T extends TripStateWithoutOrigin ? TripStateWithoutOrigin :
-    T extends TripStateWithOrigin ? TripStateWithSavedOrigin :
-        T extends TripStateWithSavedOrigin ? TripStateWithSavedOrigin : never
+export type ConditionalTripState<T extends TripState> =
+    T extends TripStateWithoutOrigin ? TripStateWithoutOrigin :
+        T extends TripStateWithOrigin ? TripStateWithSavedOrigin :
+            T extends TripStateWithSavedOrigin ? TripStateWithSavedOrigin : never
 
 export interface TripStateWithoutOrigin extends TripStateType {
     type: 'trip-state-without-origin'
