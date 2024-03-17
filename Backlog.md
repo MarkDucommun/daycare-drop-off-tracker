@@ -129,7 +129,7 @@ Notes: Some architectural thoughts
 
 ### I can see what my origin is in the Trip Tracker
 
-- State - INCOMPLETE
+- State - DELIVERED
 - Acceptance Criteria
 
       GIVEN I have selected an origin

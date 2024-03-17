@@ -42,10 +42,14 @@ export const TripTrackerScreen: React.FC = () => {
         tripStateRepository.currentTrip()
             .then(doOnSuccess(tripState => {
                 switch (tripState?.type) {
-                    case 'trip-state-with-origin': return setTrip(buildTripWithOrigin(tripState as TripStateWithOrigin))
-                    case 'trip-state-with-saved-origin': return setTrip(buildTripWithOrigin(tripState as TripStateWithSavedOrigin))
-                    case 'trip-state-without-origin': return 'TODO: handle this case'
-                    default: return setTrip(defaultTrip)
+                    case 'trip-state-with-origin':
+                        return setTrip(buildTripWithOrigin(tripState as TripStateWithOrigin))
+                    case 'trip-state-with-saved-origin':
+                        return setTrip(buildTripWithOrigin(tripState as TripStateWithSavedOrigin))
+                    case 'trip-state-without-origin':
+                        return 'TODO: handle this case'
+                    default:
+                        return setTrip(defaultTrip)
                 }
             }))
     }, []);
@@ -85,8 +89,9 @@ type StartScreenProps = {
     trip: TripWithOrigin,
 }
 
-const StartScreen: React.FC<StartScreenProps> = () => {
+const StartScreen: React.FC<StartScreenProps> = ({trip}) => {
     return (<BaseView>
+        <Text style={baseStyles.baseFont}>At {trip.state.type === "trip-state-with-origin" ? trip.state.origin : trip.state.origin.name}</Text>
         <TouchableOpacity>
             <Text style={styles.createButton}>Start trip</Text>
         </TouchableOpacity>

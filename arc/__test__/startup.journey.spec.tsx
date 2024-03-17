@@ -165,7 +165,7 @@ describe("App startup journey", () => {
         })
     })
 
-    describe("Trip Tracker Screen", () => {
+    describe("Trip Tracker Origin Screen", () => {
         it("renders an Origin text field when no Origins have yet been entered", async () => {
             const db = (await databaseFromFileAsync(":memory:")).forceGet()
             const tripStateRepository = (await buildDatabaseTripStateRepository(db))
@@ -256,6 +256,30 @@ describe("App startup journey", () => {
             />);
 
             await validateTripTrackerStartScreen(reloadedScreen)
+        })
+    })
+
+    describe("Trip Tracker Start Screen", () => {
+        it("shows 'At xxxx' when an origin has been selected", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {enterNewOrigin} = await homeScreen.viewTripTracker()
+
+            const { screen} = await enterNewOrigin("Daycare");
+
+            expect(await screen.findByText("At Daycare")).toBeOnTheScreen()
         })
     })
 })
