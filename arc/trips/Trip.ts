@@ -14,7 +14,7 @@ export type TripWithoutOrigin = {
 export type TripWithOrigin = {
     type: 'pending'
     start: () => void
-    cancel: () => void
+    cancel: () => CanceledTrip
     state: TripStateWithOrigin | TripStateWithSavedOrigin
 }
 

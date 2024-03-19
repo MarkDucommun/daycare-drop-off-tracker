@@ -12,12 +12,15 @@ import {TripStateRepositoryProvider} from "./trips/TripStateRepositoryContext";
 import {TimeProviderProvider} from "./utilities/time/TimeProviderContext";
 import {TimeProvider} from "./utilities/time/TimeProvider";
 import {TripTrackerScreen} from "./trips/TripTrackerScreen";
+import {AlertManager} from "./utilities/alert-manager/AlertManager";
+import {AlertManagerProvider} from "./utilities/alert-manager/AlertManagerContext";
 
 
 type AppProps = {
-    navigationStateRepository: NavigationStateRepository,
-    timeProvider?: TimeProvider,
+    navigationStateRepository: NavigationStateRepository
     tripStateRepository: TripStateRepository
+    alertManager?: AlertManager
+    timeProvider?: TimeProvider
 }
 
 type SaveState = (state?: NavigationState) => void
@@ -29,8 +32,9 @@ const saveState = (repository: NavigationStateRepository): SaveState => (state) 
 export const AppEntry: React.FC<AppProps> = (
     {
         navigationStateRepository,
+        tripStateRepository,
         timeProvider,
-        tripStateRepository
+        alertManager
     }) => {
 
     const [isReady, setIsReady] = useState(false)
@@ -51,13 +55,15 @@ export const AppEntry: React.FC<AppProps> = (
 
     return (<NavigationContainer onStateChange={saveState(navigationStateRepository)} initialState={initialState}>
         <TimeProviderProvider injectedProvider={timeProvider}>
-            <TripStateRepositoryProvider injectedRepository={tripStateRepository}>
-                <Stack.Navigator initialRouteName="Home" screenOptions={screenOptions}>
-                    <Stack.Screen name="Home" component={HomeScreen}/>
-                    <Stack.Screen name="Trip History" component={TripHistoryScreen}/>
-                    <Stack.Screen name="Trip Tracker" component={TripTrackerScreen}/>
-                </Stack.Navigator>
-            </TripStateRepositoryProvider>
+            <AlertManagerProvider injectedAlertManager={alertManager}>
+                <TripStateRepositoryProvider injectedRepository={tripStateRepository}>
+                    <Stack.Navigator initialRouteName="Home" screenOptions={screenOptions}>
+                        <Stack.Screen name="Home" component={HomeScreen}/>
+                        <Stack.Screen name="Trip History" component={TripHistoryScreen}/>
+                        <Stack.Screen name="Trip Tracker" component={TripTrackerScreen}/>
+                    </Stack.Navigator>
+                </TripStateRepositoryProvider>
+            </AlertManagerProvider>
         </TimeProviderProvider>
     </NavigationContainer>)
 }

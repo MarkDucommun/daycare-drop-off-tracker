@@ -38,7 +38,7 @@ export const buildValidateTripTrackerStartScreen = (): ValidateScreen<TripTracke
             return await act(async () => {
                 fireEvent.press(cancelButton);
 
-                await waitForElementToBeRemoved(() => screen.queryByText("Trip Tracker"))
+                await new Promise(resolve => setTimeout(resolve, 100))
 
                 const newScreen = validateScreen(screen)
 

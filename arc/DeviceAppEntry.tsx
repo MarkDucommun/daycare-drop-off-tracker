@@ -20,10 +20,10 @@ export const DeviceAppEntry: React.FC = () => {
 
     useEffect(() => {
         if (!navigationStateRepository)
-            retrieveNavigationStateRepository("navigation-state-v4.db")
+            retrieveNavigationStateRepository("navigation-state-v7.db")
                 .then(onSuccessSetStateUninitializedState(setNavigationStateRepository))
         if (!tripStateRepository)
-            retrieveTripStateRepository("trip-state-v1.db")
+            retrieveTripStateRepository("trip-state-v3.db")
                 .then(onSuccessSetStateUninitializedState(setTripStateRepository))
     }, []);
 

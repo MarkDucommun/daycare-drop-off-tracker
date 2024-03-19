@@ -304,9 +304,35 @@ describe("App startup journey", () => {
 
             const {enterNewOrigin} = await homeScreen.viewTripTracker()
 
-            const { screen} = await enterNewOrigin("Daycare");
+            const {screen} = await enterNewOrigin("Daycare");
 
             expect(await screen.findByText("At Daycare")).toBeOnTheScreen()
+        })
+
+        it("can cancel a trip that has an origin selected", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen)
+
+            const {enterNewOrigin} = await homeScreen.viewTripTracker()
+
+            console.log("ON TRIP TRACKER SCREEN")
+
+            const {cancelTrip} = await enterNewOrigin("Daycare")
+
+            const reloadedHomeScreen = await cancelTrip(validateHomeScreen)
+
+            await reloadedHomeScreen.viewTripTracker()
         })
     })
 })

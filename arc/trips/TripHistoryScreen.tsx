@@ -33,7 +33,7 @@ const tripStateSummaryToRow = (now: number) => (trip: TripStateSummary): DataRow
         format(trip.startTime),
         trip.origin,
         formatDurationShort(duration),
-        trip.canceled ? 'Cancelled' : ''
+        trip.cancelled ? 'Cancelled' : ''
     ]
 }
 

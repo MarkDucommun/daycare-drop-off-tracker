@@ -1,6 +1,6 @@
 import {DatabaseAccess, RunResult, Statement} from "../utilities/database/DatabaseTypes";
 import {AsyncResult} from "../utilities/results/results";
-import {flatMap, flatMapAsync, map, recover, successIfDefined} from "../utilities/results/resultCurriers";
+import {doOnError, flatMap, flatMapAsync, map, recover, successIfDefined} from "../utilities/results/resultCurriers";
 import {
     ConditionalTripState,
     Location,
@@ -32,8 +32,9 @@ async function migrate(database: DatabaseAccess): AsyncResult<null> {
 
             create table if not exists trips
             (
-                id     integer primary key not null,
-                origin integer             not null,
+                id        integer primary key not null,
+                origin    integer             not null,
+                cancelled integer default 0,
                 foreign key (origin) references locations (id)
             )
         `)
@@ -67,7 +68,7 @@ function summarizeAllTrips(database: DatabaseAccess): TripStateRepository['summa
                 origin: "Home",
                 startTime: new Date(2024, 0, 1, 8).getTime(),
                 endTime: new Date(2024, 0, 1, 8, 30).getTime(),
-                canceled: true
+                cancelled: true
             },
         ]))
 }
@@ -82,6 +83,8 @@ function save(database: DatabaseAccess): TripStateRepository['save'] {
                         return createTripWithoutOrigin(locations)
                     case "trip-state-with-origin":
                         return createTripWithSavedOrigin(database, tripState.origin, locations)
+                    case "trip-state-with-saved-origin":
+                        return updateTripWithSavedOrigin(database, tripState, locations)
                     default:
                         return asyncSuccess({} as ConditionalTripState<T>)
                 }
@@ -113,8 +116,10 @@ function currentTrip(database: DatabaseAccess): TripStateRepository['currentTrip
                 SELECT locations.name as origin, locations.id as origin_id, MAX(trips.id) as trip_id
                 FROM trips
                          LEFT JOIN locations ON trips.origin = locations.id
+                WHERE trips.cancelled = false
             `)
             .then(flatMapAsync(getOne))
+            .then(doOnError(console.log))
             .then(flatMap(rawTripExtractor))
             .then(map(trip => trip as RawTrip | null))
             .then(recover(null as RawTrip | null))
@@ -163,12 +168,19 @@ const createTripWithoutOrigin = <T extends TripState>(locations: SavedLocation[]
 const createTripWithSavedOrigin = <T extends TripState>(database: DatabaseAccess, origin: string, locations: SavedLocation[]): AsyncResult<ConditionalTripState<T>> =>
     successIfDefined(locations.find(location => location.name == origin))
         .flatMapAsync(insertTrip(database, locations))
+        .then(doOnError(console.log))
         .then(map((trip) => trip as ConditionalTripState<T>))
 
 const insertTrip = (database: DatabaseAccess, savedLocations: SavedLocation[]) => (origin: SavedLocation) => {
     return database
         .runAsync('INSERT INTO trips (origin) VALUES (?)', [origin.id])
         .then(map(createTrip(origin, savedLocations)));
+}
+
+
+const updateTripWithSavedOrigin = <T extends TripState>(database: DatabaseAccess, tripState: TripStateWithSavedOrigin, locations: SavedLocation[]): AsyncResult<ConditionalTripState<T>> => {
+    return database.runAsync('UPDATE trips SET cancelled = ? WHERE id = ?', [tripState.cancelled ? 1 : 0, tripState.id])
+        .then(map(_ => tripState as ConditionalTripState<T>))
 }
 
 const createTrip = (origin: SavedLocation, locations: SavedLocation[]) => ({lastInsertId}: RunResult): TripStateWithSavedOrigin =>
@@ -209,17 +221,19 @@ const createSavedLocation: CreateSavedLocation = (name) =>
 
 type RawTripSummary = {
     id: number,
-    origin: string
+    origin: string,
+    cancelled: number
 }
 
 const tripMapper = createSimpleTypeSafeMapper<RawTripSummary>({
     id: 'number',
-    origin: 'string'
+    origin: 'string',
+    cancelled: 'number'
 })
 
 const allTripsStatement = (database: DatabaseAccess) =>
     database.prepareAsync(`
-        SELECT trips.id as id, locations.name as origin
+        SELECT trips.id as id, locations.name as origin, trips.cancelled as cancelled
         FROM trips
                  LEFT JOIN locations ON trips.origin = locations.id
     `)
@@ -227,5 +241,6 @@ const allTripsStatement = (database: DatabaseAccess) =>
 export const getAll = ({getAllAsync, finalizeAsync}: Statement) => getAllAsync([]).finally(finalizeAsync)
 export const getOne = ({getFirstAsync, finalizeAsync}: Statement) => getFirstAsync([]).finally(finalizeAsync)
 
-const rawTripSummaryToTripStateSummary = (trip: RawTripSummary): TripStateSummary =>
-    ({...trip, startTime: new Date().getTime()})
+const rawTripSummaryToTripStateSummary = (trip: RawTripSummary): TripStateSummary => {
+    return ({...trip, cancelled: !!trip.cancelled, startTime: new Date().getTime()});
+}
