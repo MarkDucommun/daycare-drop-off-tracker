@@ -1,11 +1,11 @@
 import '@testing-library/react-native/extend-expect';
 import {AppEntry} from "../AppEntry";
-import {act, render, within} from "@testing-library/react-native";
+import {act, fireEvent, render, within} from "@testing-library/react-native";
 import {validateHomeScreen, validateTripHistoryScreen, validateTripTrackerStartScreen} from "./actions";
 import {buildInMemoryNavigationStateRepository} from "../navigation/InMemoryNavigationStateRepository";
 import {buildDatabaseNavigationStateRepository} from "../navigation/SQLiteNavigationStateRepository";
 import {databaseFromFileAsync} from "../utilities/database/BetterSQLiteDatabaseAccess";
-import {buildDatabaseTripStateRepository} from "../trips/FakeTripStateRepository";
+import {buildDatabaseTripStateRepository} from "../trips/TripStateRepository";
 import {createControllableTimeProvider} from "../utilities/time/TimeProvider";
 
 jest.mock("../navigation/nativeStack", () => jest.requireActual('../navigation/stack'))
@@ -94,7 +94,7 @@ describe("App startup journey", () => {
         await validateTripHistoryScreen(secondScreen)
     })
 
-    describe("Trip History screen", () => {
+    describe("Trip History Screen", () => {
         it("renders the origin, start time and duration of the trip", async () => {
             const db = (await databaseFromFileAsync(":memory:")).forceGet()
             const tripStateRepository = (await buildDatabaseTripStateRepository(db))
@@ -189,6 +189,37 @@ describe("App startup journey", () => {
             const lastRow = within((await screen.findAllByTestId("row"))[1]);
 
             expect(await lastRow.findByText("Cancelled")).toBeOnTheScreen()
+        })
+    })
+
+    describe("Trip Details Screen", () => {
+        it("can be reached from the Trip History Screen", async () => {
+            const db = (await databaseFromFileAsync(":memory:")).forceGet()
+            const tripStateRepository = (await buildDatabaseTripStateRepository(db))
+                .forceGet();
+
+            const navigationStateRepositoryController = buildInMemoryNavigationStateRepository();
+            const repository = navigationStateRepositoryController.getRepository();
+
+            const currentDate = new Date(2024, 0, 2, 8, 27, 15);
+
+            const {timeProvider} = createControllableTimeProvider(currentDate.getTime())
+
+            const initialScreen = render(<AppEntry
+                navigationStateRepository={repository}
+                tripStateRepository={tripStateRepository}
+                timeProvider={timeProvider}
+            />);
+
+            const homeScreen = await validateHomeScreen(initialScreen);
+
+            const {screen} = await homeScreen.viewPastTrips()
+
+            const tripTime = await screen.findByText("2024.01.02 08:00");
+
+            act(() => fireEvent.press(tripTime))
+
+            await screen.findByText("Trip Details")
         })
     })
 

@@ -7,7 +7,7 @@ import {Text} from "react-native";
 import {databaseFromFileAsync} from "./utilities/database/ExpoSQLiteNextDatabaseAccess";
 import {flatMapAsync, onSuccessSetStateUninitializedState} from "./utilities/results/resultCurriers";
 import {TripStateRepository} from "./trips/TripStateRepositoryType";
-import {buildDatabaseTripStateRepository} from "./trips/FakeTripStateRepository";
+import {buildDatabaseTripStateRepository} from "./trips/TripStateRepository";
 
 export const DeviceAppEntry: React.FC = () => {
 

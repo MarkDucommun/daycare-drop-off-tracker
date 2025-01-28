@@ -1,4 +1,4 @@
-import {buildDatabaseTripStateRepository, locationIsSaved} from "../FakeTripStateRepository";
+import {buildDatabaseTripStateRepository, locationIsSaved} from "../TripStateRepository";
 import {databaseFromFileAsync} from "../../utilities/database/BetterSQLiteDatabaseAccess";
 import {flatMapAsync} from "../../utilities/results/resultCurriers";
 
